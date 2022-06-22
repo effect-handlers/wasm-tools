@@ -7,8 +7,8 @@ use super::{
 };
 use crate::{
     limits::*, BinaryReaderError, Data, DataKind, Element, ElementItem, ElementKind, ExternalKind,
-    FuncType, Global, GlobalType, InitExpr, MemoryType, Operator, Result, TableType, TagType,
-    TypeRef, ValType, WasmFeatures, WasmModuleResources,
+    FuncType, Global, GlobalType, HeapType, InitExpr, MemoryType, Operator, RefType, Result,
+    TableType, TagType, TypeRef, ValType, WasmFeatures, WasmModuleResources, FUNC_REF,
 };
 use indexmap::IndexMap;
 use std::{collections::HashSet, sync::Arc};
@@ -173,16 +173,30 @@ impl ModuleState {
         types: &TypeList,
         offset: usize,
     ) -> Result<()> {
-        match e.ty {
-            ValType::FuncRef => {}
-            ValType::ExternRef if features.reference_types => {}
-            ValType::ExternRef => {
+        let RefType {
+            nullable,
+            heap_type,
+        } = e.ty;
+        match heap_type {
+            HeapType::Index(_) => {
+                if nullable { /* "as long as the index is ok" */
+                } else {
+                    if !e.items.get_items_reader()?.get_count() > 0 {
+                        return Err(BinaryReaderError::new(
+                            "a non-nullable element must come with an initialization expression",
+                            offset,
+                        ));
+                    }
+                }
+            }
+            HeapType::Func => {}
+            HeapType::Extern if features.reference_types => {}
+            HeapType::Extern => {
                 return Err(BinaryReaderError::new(
                     "reference types must be enabled for externref elem segment",
                     offset,
                 ))
             }
-            _ => return Err(BinaryReaderError::new("malformed reference type", offset)),
         }
         match e.kind {
             ElementKind::Active {
@@ -219,10 +233,10 @@ impl ModuleState {
             let offset = items.original_position();
             match items.read()? {
                 ElementItem::Expr(expr) => {
-                    self.check_init_expr(&expr, e.ty, features, types, offset)?;
+                    self.check_init_expr(&expr, ValType::Ref(e.ty), features, types, offset)?;
                 }
                 ElementItem::Func(f) => {
-                    if e.ty != ValType::FuncRef {
+                    if e.ty != FUNC_REF {
                         return Err(BinaryReaderError::new(
                             "type mismatch: segment does not have funcref type",
                             offset,
@@ -354,7 +368,7 @@ pub(crate) struct Module {
     pub tables: Vec<TableType>,
     pub memories: Vec<MemoryType>,
     pub globals: Vec<GlobalType>,
-    pub element_types: Vec<ValType>,
+    pub element_types: Vec<RefType>,
     pub data_count: Option<u32>,
     // Stores indexes into `types`.
     pub functions: Vec<u32>,
@@ -591,16 +605,16 @@ impl Module {
         features: &WasmFeatures,
         offset: usize,
     ) -> Result<()> {
-        match ty.element_type {
-            ValType::FuncRef => {}
-            ValType::ExternRef => {
+        match ty.element_type.heap_type {
+            HeapType::Func => {}
+            HeapType::Extern => {
                 if !features.reference_types {
                     return Err(BinaryReaderError::new("element is not anyfunc", offset));
                 }
             }
-            _ => {
+            HeapType::Index(_) => {
                 return Err(BinaryReaderError::new(
-                    "element is not reference type",
+                    "it doesn't make sense for a table type to be an index",
                     offset,
                 ))
             }
@@ -612,6 +626,8 @@ impl Module {
                 offset,
             ));
         }
+        // TODO(luna): need to check the initialization expression that
+        // function references adds to tables
         Ok(())
     }
 
@@ -899,7 +915,7 @@ impl WasmModuleResources for OperatorValidatorResources<'_> {
         self.func_type_at(*self.module.functions.get(at as usize)?)
     }
 
-    fn element_type_at(&self, at: u32) -> Option<ValType> {
+    fn element_type_at(&self, at: u32) -> Option<RefType> {
         self.module.element_types.get(at as usize).cloned()
     }
 
@@ -955,7 +971,7 @@ impl WasmModuleResources for ValidatorResources {
         self.func_type_at(*self.0.functions.get(at as usize)?)
     }
 
-    fn element_type_at(&self, at: u32) -> Option<ValType> {
+    fn element_type_at(&self, at: u32) -> Option<RefType> {
         self.0.element_types.get(at as usize).cloned()
     }
 
