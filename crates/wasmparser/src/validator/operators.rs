@@ -2075,6 +2075,15 @@ impl OperatorValidator {
                 self.pop_operand(Some(ty))?;
                 self.pop_operand(Some(ValType::I32))?;
             }
+
+            // Function references proposal operators. TODO(dhil): Put
+            // each rule in its appropriate place within the above
+            // list.
+            Operator::CallRef
+            | Operator::ReturnCallRef
+            | Operator::RefAsNonNull => todo!("implement static semantics for function references proposal instructions."),
+            Operator::BrOnNull { relative_depth }
+            | Operator::BrOnNonNull { relative_depth } => todo!("implement static semantics for function references proposal instructions.")
         }
         Ok(())
     }
