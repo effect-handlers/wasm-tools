@@ -760,6 +760,14 @@ pub enum Instruction<'a> {
     F32x4RelaxedMax,
     F64x2RelaxedMin,
     F64x2RelaxedMax,
+
+    // Function references proposal. TODO(dhil): Merge with the above
+    // list.
+    CallRef,
+    ReturnCallRef,
+    RefAsNonNull,
+    BrOnNull(u32),
+    BrOnNonNull(u32),
 }
 
 impl Encode for Instruction<'_> {
@@ -2299,6 +2307,20 @@ impl Encode for Instruction<'_> {
             Instruction::F64x2RelaxedMax => {
                 sink.push(0xFD);
                 0xEEu32.encode(sink);
+            }
+
+            // Function references proposal. TODO(dhil): Merge with
+            // the above list.
+            Instruction::CallRef => sink.push(0x14),
+            Instruction::ReturnCallRef => sink.push(0x15),
+            Instruction::RefAsNonNull => sink.push(0xD3),
+            Instruction::BrOnNull(l) => {
+                sink.push(0xD4);
+                l.encode(sink);
+            }
+            Instruction::BrOnNonNull(l) => {
+                sink.push(0xD6);
+                l.encode(sink);
             }
         }
     }
