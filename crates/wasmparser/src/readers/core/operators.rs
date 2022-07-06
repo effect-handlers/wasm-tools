@@ -1012,11 +1012,11 @@ pub enum Operator<'a> {
     ReturnCallRef,
     RefAsNonNull,
     BrOnNull {
-        relative_depth: u32
+        relative_depth: u32,
     },
     BrOnNonNull {
-        relative_depth: u32
-    }
+        relative_depth: u32,
+    },
 }
 
 /// A reader for a core WebAssembly function's operators.

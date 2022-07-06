@@ -1886,7 +1886,6 @@ impl<'a> BinaryReader<'a> {
 
             // Function references proposal operators. TODO(dhil): Put
             // each into its appropriate place within the above list.
-
             0x14 => Operator::CallRef,
             0x15 => Operator::ReturnCallRef,
             0xd3 => Operator::RefAsNonNull,

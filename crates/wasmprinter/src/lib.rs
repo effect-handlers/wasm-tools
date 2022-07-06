@@ -2005,7 +2005,7 @@ impl Printer {
                     relative_depth,
                     label(*relative_depth),
                 )?;
-            },
+            }
             BrOnNonNull { relative_depth } => {
                 write!(
                     self.result,
