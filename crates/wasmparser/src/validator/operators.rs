@@ -240,8 +240,7 @@ impl OperatorValidator {
     ///
     /// If `Some(T)` is returned then `T` was popped from the operand stack and
     /// matches `expected`. If `None` is returned then it means that `None` was
-    /// expected and a type was successfully popped, but its exact type is
-    /// indeterminate because the current block is unreachable.
+    /// expected and the current block is unreachable.
     fn pop_operand(
         &mut self,
         expected: Option<ValType>,
@@ -2105,15 +2104,23 @@ impl OperatorValidator {
             Operator::CallRef => {
                 if let Some(rt) = self.pop_ref(resources)? {
                     match rt.heap_type {
-                        HeapType::Index(function_index) => {
-                            self.check_call(function_index, resources)?;
+                        HeapType::Index(type_index) => {
+                            let ty = func_type_at(resources, type_index)?;
+                            for ty in ty.inputs().rev() {
+                                self.pop_operand(Some(ty), resources)?;
+                            }
+                            for ty in ty.outputs() {
+                                self.push_operand(ty)?;
+                            }
                         }
-                        _ => bail_op_err!(
-                            "type mismatch: call_ref only works on index-type references"
-                        ),
+                        _ => {
+                            if !self.control.last().unwrap().unreachable {
+                                bail_op_err!(
+                                    "type mismatch: call_ref only works on index-type references"
+                                )
+                            }
+                        }
                     }
-                } else {
-                    bail_op_err!("type mismatch: expected ref but nothing on stack")
                 }
             }
             Operator::ReturnCallRef | Operator::RefAsNonNull => {
