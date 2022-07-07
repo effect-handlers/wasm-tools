@@ -911,8 +911,12 @@ impl WasmModuleResources for OperatorValidatorResources<'_> {
         )
     }
 
+    fn type_index_of_function(&self, at: u32) -> Option<u32> {
+        self.module.functions.get(at as usize).cloned()
+    }
+
     fn type_of_function(&self, at: u32) -> Option<&Self::FuncType> {
-        self.func_type_at(*self.module.functions.get(at as usize)?)
+        self.func_type_at(self.type_index_of_function(at)?)
     }
 
     fn element_type_at(&self, at: u32) -> Option<RefType> {
@@ -967,8 +971,12 @@ impl WasmModuleResources for ValidatorResources {
         )
     }
 
+    fn type_index_of_function(&self, at: u32) -> Option<u32> {
+        self.0.functions.get(at as usize).cloned()
+    }
+
     fn type_of_function(&self, at: u32) -> Option<&Self::FuncType> {
-        self.func_type_at(*self.0.functions.get(at as usize)?)
+        self.func_type_at(self.type_index_of_function(at)?)
     }
 
     fn element_type_at(&self, at: u32) -> Option<RefType> {

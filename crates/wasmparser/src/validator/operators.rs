@@ -1446,19 +1446,22 @@ impl OperatorValidator {
             }
             Operator::RefFunc { function_index } => {
                 self.check_reference_types_enabled()?;
-                if resources.type_of_function(function_index).is_none() {
-                    return Err(OperatorValidatorError::new(format!(
-                        "unknown function {}: function index out of bounds",
-                        function_index,
-                    )));
-                }
+                let type_index =
+                    if let Some(type_index) = resources.type_index_of_function(function_index) {
+                        type_index
+                    } else {
+                        return Err(OperatorValidatorError::new(format!(
+                            "unknown function {}: function index out of bounds",
+                            function_index,
+                        )));
+                    };
                 if !resources.is_function_referenced(function_index) {
                     return Err(OperatorValidatorError::new("undeclared function reference"));
                 }
                 if self.features.function_references {
                     self.push_operand(ValType::Ref(RefType {
                         nullable: false,
-                        heap_type: HeapType::Index(function_index),
+                        heap_type: HeapType::Index(type_index),
                     }))?;
                 } else {
                     self.push_operand(ValType::Ref(FUNC_REF))?;
