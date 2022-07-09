@@ -249,7 +249,9 @@ impl TestState {
     fn test_wast_directive(&self, test: &Path, directive: WastDirective) -> Result<()> {
         // Only test parsing and encoding of modules which wasmparser doesn't
         // support test (basically just test `wast`, nothing else)
-        let skip_verify = test.iter().any(|t| t == "function-references" || t == "gc");
+        let skip_verify = test.iter().any(|t| t == "gc")
+            || (test.iter().any(|t| t == "function-references")
+                && test.iter().all(|t| t != "call_ref.wast"));
 
         match directive {
             WastDirective::Wat(mut module) => {
@@ -456,6 +458,7 @@ impl TestState {
                 "component-model" => features.component_model = true,
                 "multi-memory" => features.multi_memory = true,
                 "extended-const" => features.extended_const = true,
+                "function-references" => features.function_references = true,
                 _ => {}
             }
         }
