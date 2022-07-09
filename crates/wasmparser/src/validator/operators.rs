@@ -2126,7 +2126,22 @@ impl OperatorValidator {
                     }
                 }
             }
-            Operator::ReturnCallRef | Operator::RefAsNonNull => {
+            Operator::RefAsNonNull => {
+                if let Some(RefType { heap_type, .. }) = self.pop_ref(resources)? {
+                    match heap_type {
+                        HeapType::Func | HeapType::Extern => (),
+                        HeapType::Index(type_index) => {
+                            // Just check that the index is valid
+                            func_type_at(resources, type_index)?;
+                        }
+                    }
+                    self.push_operand(ValType::Ref(RefType {
+                        nullable: false,
+                        heap_type,
+                    }))?;
+                }
+            }
+            Operator::ReturnCallRef => {
                 bail_op_err!(
                     "implement static semantics for function references proposal instructions."
                 )

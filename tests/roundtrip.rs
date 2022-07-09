@@ -251,7 +251,9 @@ impl TestState {
         // support test (basically just test `wast`, nothing else)
         let skip_verify = test.iter().any(|t| t == "gc")
             || (test.iter().any(|t| t == "function-references")
-                && test.iter().all(|t| t != "call_ref.wast"));
+                && test
+                    .iter()
+                    .all(|t| t != "ref_as_non_null.wast" && t != "call_ref.wast"));
 
         match directive {
             WastDirective::Wat(mut module) => {
