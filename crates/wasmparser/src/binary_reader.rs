@@ -1530,7 +1530,7 @@ impl<'a> BinaryReader<'a> {
                 self.position += 1;
                 Ok(HeapType::Extern)
             }
-            x if 0xf0 & x == 0 => {
+            x if 0x80 & x == 0 => {
                 self.position += 1;
                 Ok(HeapType::Index(x as u32))
             }
