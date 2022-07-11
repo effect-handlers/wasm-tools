@@ -1443,12 +1443,12 @@ impl OperatorValidator {
             }
             Operator::RefIsNull => {
                 self.check_reference_types_enabled()?;
-                match self.pop_operand(None, resources)? {
-                    None | Some(ValType::Ref(RefType { nullable: true, .. })) => {}
-                    _ => {
-                        return Err(OperatorValidatorError::new(
-                            "type mismatch: invalid reference type in ref.is_null",
-                        ))
+                match self.pop_ref(resources)? {
+                    None => {}
+                    Some(RefType { nullable, .. }) => {
+                        if !nullable {
+                            self.check_function_references_enabled()?;
+                        }
                     }
                 }
                 self.push_operand(ValType::I32)?;
