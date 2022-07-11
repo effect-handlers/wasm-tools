@@ -442,6 +442,15 @@ impl OperatorValidator {
         Ok(())
     }
 
+    fn check_function_references_enabled(&self) -> OperatorValidatorResult<()> {
+        if !self.features.function_references {
+            return Err(OperatorValidatorError::new(
+                "function references support is not enabled",
+            ));
+        }
+        Ok(())
+    }
+
     fn check_simd_enabled(&self) -> OperatorValidatorResult<()> {
         if !self.features.simd {
             return Err(OperatorValidatorError::new("SIMD support is not enabled"));
@@ -2105,6 +2114,7 @@ impl OperatorValidator {
             // each rule in its appropriate place within the above
             // list.
             Operator::CallRef => {
+                self.check_function_references_enabled()?;
                 if let Some(rt) = self.pop_ref(resources)? {
                     match rt.heap_type {
                         HeapType::Index(type_index) => {
@@ -2127,6 +2137,7 @@ impl OperatorValidator {
                 }
             }
             Operator::RefAsNonNull => {
+                self.check_function_references_enabled()?;
                 if let Some(RefType { heap_type, .. }) = self.pop_ref(resources)? {
                     match heap_type {
                         HeapType::Func | HeapType::Extern => (),
