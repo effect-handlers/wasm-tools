@@ -385,6 +385,21 @@ impl OperatorValidator {
         }
     }
 
+    fn check_heap_type(
+        &self,
+        heap_type: HeapType,
+        resources: impl WasmModuleResources,
+    ) -> OperatorValidatorResult<()> {
+        match heap_type {
+            HeapType::Func | HeapType::Extern => (),
+            HeapType::Index(type_index) => {
+                // Just check that the index is valid
+                func_type_at(&resources, type_index)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Validates a `memarg for alignment and such (also the memory it
     /// references), and returns the type of index used to address the memory.
     fn check_memarg(
@@ -2139,28 +2154,76 @@ impl OperatorValidator {
             Operator::RefAsNonNull => {
                 self.check_function_references_enabled()?;
                 if let Some(RefType { heap_type, .. }) = self.pop_ref(resources)? {
-                    match heap_type {
-                        HeapType::Func | HeapType::Extern => (),
-                        HeapType::Index(type_index) => {
-                            // Just check that the index is valid
-                            func_type_at(resources, type_index)?;
-                        }
-                    }
+                    self.check_heap_type(heap_type, resources)?;
                     self.push_operand(ValType::Ref(RefType {
                         nullable: false,
                         heap_type,
                     }))?;
                 }
             }
-            Operator::ReturnCallRef => {
-                bail_op_err!(
-                    "implement static semantics for function references proposal instructions."
-                )
+            Operator::BrOnNull { relative_depth } => {
+                self.check_function_references_enabled()?;
+                let (ty, kind) = self.jump(relative_depth)?;
+                let non_null = if let Some(RefType { heap_type, .. }) = self.pop_ref(resources)? {
+                    self.check_heap_type(heap_type, resources)?;
+                    ValType::Ref(RefType {
+                        nullable: false,
+                        heap_type,
+                    })
+                } else {
+                    // TODO: i'm confused. arbitrary but still tested as being
+                    // a ref?
+                    ValType::Ref(RefType {
+                        nullable: false,
+                        heap_type: HeapType::Func,
+                    })
+                };
+                // validates that t* matches block type by popping each t and
+                // pushing them again. TODO: This is not quite right with
+                // subtyping, and has to be changed everywhere
+                for ty in label_types(ty, resources, kind)?.rev() {
+                    self.pop_operand(Some(ty), resources)?;
+                }
+                for ty in label_types(ty, resources, kind)? {
+                    self.push_operand(ty)?;
+                }
+                self.push_operand(non_null)?
             }
-            Operator::BrOnNull { relative_depth } | Operator::BrOnNonNull { relative_depth } => {
-                bail_op_err!(
-                    "implement static semantics for function references proposal instructions."
-                )
+            Operator::BrOnNonNull { relative_depth } => {
+                self.check_function_references_enabled()?;
+                let (fty, kind) = self.jump(relative_depth)?;
+                let mut tp = label_types(fty, resources, kind)?;
+                match tp.next_back() {
+                    None => bail_op_err!(
+                        "type mismatch: br_on_non_null must have block type with at least one type"
+                    ),
+                    // ref ht <= tl
+                    // tl = ref ht | tl = ref null ht
+                    Some(ValType::Ref(RefType { heap_type, .. })) => {
+                        self.check_heap_type(heap_type, resources)?;
+                        // pop a nullable variant ie both nullable and
+                        // non-nullable references are allowed here
+                        self.pop_operand(
+                            Some(ValType::Ref(RefType {
+                                heap_type,
+                                nullable: true,
+                            })),
+                            resources,
+                        )?;
+                    }
+                    Some(_) => bail_op_err!("type mismatch: not a ref type"),
+                }
+                // t' is now t*
+                let t_star = tp;
+                for ty in label_types(fty, resources, kind)?.rev().skip(1) {
+                    self.pop_operand(Some(ty), resources)?;
+                }
+                for ty in t_star {
+                    self.push_operand(ty)?;
+                }
+            }
+            Operator::ReturnCallRef => {
+                bail_op_err!("TODO: implement func refs tail calls")
             }
         }
         Ok(())
