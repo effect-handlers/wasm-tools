@@ -251,16 +251,19 @@ impl TestState {
         // support test (basically just test `wast`, nothing else)
         let skip_verify = test.iter().any(|t| t == "gc")
             || (test.iter().any(|t| t == "function-references")
-                && test.iter().all(|t| {
-                    t != "ref_as_non_null.wast"
-                        && t != "call_ref.wast"
-                        && t != "br_on_null.wast"
-                        && t != "br_on_non_null.wast"
-                        && t != "ref_func.wast"
-                        && t != "ref.wast"
-                        && t != "func.wast"
-                    //&& t != "br_table.wast"
-                    //&& t != "binary.wast"
+                && test.iter().any(|t| {
+                    // These shouldn't pass (we don't plan to support them as
+                    // they are in spec limbo)
+                    t == "let.wast"
+                        || t == "let-bad.wast"
+                        || t == "func_bind.wast"
+                        // These should work as far as i know, but don't yet
+                        || t == "ref_is_null.wast"
+                        || t == "br_table.wast"
+                        || t == "binary.wast"
+                        || t == "type-equivalence.wast"
+                        || t == "table.wast"
+                        || t == "table-sub.wast"
                 }));
 
         match directive {

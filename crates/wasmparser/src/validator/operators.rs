@@ -2175,6 +2175,30 @@ impl OperatorValidator {
                     }
                 }
             }
+            Operator::ReturnCallRef => {
+                self.check_function_references_enabled()?;
+                if let Some(rt) = self.pop_ref(resources)? {
+                    match rt.heap_type {
+                        HeapType::Index(type_index) => {
+                            let ty = func_type_at(resources, type_index)?;
+                            for ty in ty.inputs().rev() {
+                                self.pop_operand(Some(ty), resources)?;
+                            }
+                            for ty in ty.outputs() {
+                                self.push_operand(ty, resources)?;
+                            }
+                        }
+                        _ => {
+                            if !self.control.last().unwrap().unreachable {
+                                bail_op_err!(
+                                    "type mismatch: call_ref only works on index-type references"
+                                )
+                            }
+                        }
+                    }
+                }
+                self.check_return(resources)?;
+            }
             Operator::RefAsNonNull => {
                 self.check_function_references_enabled()?;
                 if let Some(RefType { heap_type, .. }) = self.pop_ref(resources)? {
@@ -2248,9 +2272,6 @@ impl OperatorValidator {
                 for ty in t_star {
                     self.push_operand(ty, resources)?;
                 }
-            }
-            Operator::ReturnCallRef => {
-                bail_op_err!("TODO: implement func refs tail calls")
             }
         }
         Ok(())
