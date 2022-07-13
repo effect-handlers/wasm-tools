@@ -173,14 +173,12 @@ impl ModuleState {
         } = e.ty;
         match heap_type {
             HeapType::Index(_) => {
-                if nullable { /* "as long as the index is ok" */
-                } else {
-                    if !e.items.get_items_reader()?.get_count() > 0 {
-                        return Err(BinaryReaderError::new(
-                            "a non-nullable element must come with an initialization expression",
-                            offset,
-                        ));
-                    }
+                // nullable: "as long as the index is ok"
+                if !nullable && e.items.get_items_reader()?.get_count() <= 0 {
+                    return Err(BinaryReaderError::new(
+                        "a non-nullable element must come with an initialization expression",
+                        offset,
+                    ));
                 }
             }
             HeapType::Func | HeapType::Extern => {}
@@ -191,6 +189,7 @@ impl ModuleState {
                 init_expr,
             } => {
                 let table = self.module.table_at(table_index, offset)?;
+                // This should be updated to matches(...) but Daniel has lock
                 if e.ty != table.element_type {
                     return Err(BinaryReaderError::new(
                         format!(
