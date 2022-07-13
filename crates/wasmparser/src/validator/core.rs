@@ -193,7 +193,10 @@ impl ModuleState {
                 let table = self.module.table_at(table_index, offset)?;
                 if e.ty != table.element_type {
                     return Err(BinaryReaderError::new(
-                        "invalid element type for table type",
+                        format!(
+                            "invalid element type {:?} for table type {:?}",
+                            e.ty, table.element_type
+                        ),
                         offset,
                     ));
                 }
@@ -500,9 +503,10 @@ impl Module {
         &mut self,
         ty: TableType,
         features: &WasmFeatures,
+        types: &TypeList,
         offset: usize,
     ) -> Result<()> {
-        self.check_table_type(&ty, features, offset)?;
+        self.check_table_type(&ty, features, types, offset)?;
         self.tables.push(ty);
         Ok(())
     }
@@ -568,7 +572,7 @@ impl Module {
                 EntityType::Func(self.types[*type_index as usize])
             }
             TypeRef::Table(t) => {
-                self.check_table_type(t, features, offset)?;
+                self.check_table_type(t, features, types, offset)?;
                 EntityType::Table(*t)
             }
             TypeRef::Memory(t) => {
@@ -590,6 +594,7 @@ impl Module {
         &self,
         ty: &TableType,
         features: &WasmFeatures,
+        types: &TypeList,
         offset: usize,
     ) -> Result<()> {
         match ty.element_type.heap_type {
@@ -599,11 +604,11 @@ impl Module {
                     return Err(BinaryReaderError::new("element is not anyfunc", offset));
                 }
             }
-            HeapType::Index(_) => {
-                return Err(BinaryReaderError::new(
-                    "unknown type: table types cannot be index",
-                    offset,
-                ))
+            HeapType::Index(i) => {
+                if !features.function_references {
+                    return Err(BinaryReaderError::new("element is not anyfunc", offset));
+                }
+                self.func_type_at(i, types, offset)?;
             }
         }
         self.check_limits(ty.initial, ty.maximum, offset)?;

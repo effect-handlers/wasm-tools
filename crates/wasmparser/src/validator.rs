@@ -603,8 +603,11 @@ impl Validator {
                 state.module.assert_mut().tables.reserve(count as usize);
                 Ok(())
             },
-            |state, features, _, ty, offset| {
-                state.module.assert_mut().add_table(ty, features, offset)
+            |state, features, types, ty, offset| {
+                state
+                    .module
+                    .assert_mut()
+                    .add_table(ty, features, types, offset)
             },
         )
     }
