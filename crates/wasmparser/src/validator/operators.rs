@@ -180,6 +180,19 @@ impl OperatorValidator {
         resources: &impl WasmModuleResources,
     ) -> Result<()> {
         resources.check_value_type(ty, &self.features, offset)?;
+        // As far as i can tell, this isn't specified in the spec for function
+        // references, it's only tested and mentioned in the overview
+        match ty {
+            ValType::Ref(RefType {
+                nullable: false, ..
+            }) => {
+                return Err(BinaryReaderError::new(
+                    format!("non-defaultable local type: {}", ty_to_str(ty)),
+                    offset,
+                ))
+            }
+            _ => (),
+        }
         if count == 0 {
             return Ok(());
         }

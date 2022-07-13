@@ -258,7 +258,7 @@ impl TestState {
                         && t != "br_on_non_null.wast"
                         && t != "ref_func.wast"
                         && t != "ref.wast"
-                    //&& t != "func.wast"
+                        && t != "func.wast"
                     //&& t != "br_table.wast"
                     //&& t != "binary.wast"
                 }));
