@@ -2277,12 +2277,12 @@ fn is_num(ty: ValType) -> bool {
     matches!(ty, ValType::I32 | ValType::I64 | ValType::F32 | ValType::F64 | ValType::Bot)
 }
 
-fn is_vec(ty : Option<ValType>) -> bool {
-    matches!(ty, Some(ValType::V128) | None)
+fn is_vec(ty : ValType) -> bool {
+    ty == ValType::V128
 }
 
-fn is_ref(ty : Option<ValType>) -> bool {
-    !(is_num(ty) || is_vec(ty)) || t == Some(Bot)
+fn is_ref(ty : ValType) -> bool {
+    !(is_num(ty) || is_vec(ty)) || ty == ValType::Bot
 }
 
 fn matches_null(null1 : bool, null2 : bool) -> bool {
@@ -2305,7 +2305,7 @@ fn matches_ref(ty1 : RefType, ty2 : RefType, resources: &impl WasmModuleResource
 }
 
 fn matches(ty1 : ValType, ty2 : ValType, resources: &impl WasmModuleResources) -> bool {
-    (is_num(ty1) && is_num(ty2) && ty1 == ty2) || (is_ref(Some(ty1)) && is_ref(Some(ty2)) && matches_ref(ty1, ty2, resources)) || ty1 == ValType::Bot
+    (is_num(ty1) && is_num(ty2) && ty1 == ty2) || (is_ref(ty1) && is_ref(ty2) && matches_ref(ty1, ty2, resources)) || ty1 == ValType::Bot
 }
 
 // /// Returns t1 <: t2 according to the typed function references proposal
