@@ -182,8 +182,8 @@ impl ModuleState {
                     ));
                 }
             }
-            HeapType::Func | HeapType::Extern => {},
-            HeapType::Bot => panic!("Unexpected bot")
+            HeapType::Func | HeapType::Extern => {}
+            HeapType::Bot => panic!("Unexpected bot"),
         }
         match e.kind {
             ElementKind::Active {
@@ -612,8 +612,8 @@ impl Module {
                     return Err(BinaryReaderError::new("element is not anyfunc", offset));
                 }
                 self.func_type_at(i, types, offset)?;
-            },
-            HeapType::Bot => todo!()
+            }
+            HeapType::Bot => todo!(),
         }
         self.check_limits(ty.initial, ty.maximum, offset)?;
         if ty.initial > MAX_WASM_TABLE_ENTRIES as u32 {
@@ -724,7 +724,7 @@ impl Module {
             HeapType::Index(type_index) => {
                 // Just check that the index is valid
                 self.func_type_at(type_index, types, offset)?;
-            },
+            }
             HeapType::Bot => (),
         }
         Ok(())
@@ -732,14 +732,17 @@ impl Module {
 
     pub(crate) fn matches(&self, ty1: ValType, ty2: ValType, types: &TypeList) -> bool {
         fn is_num(ty: ValType) -> bool {
-            matches!(ty, ValType::I32 | ValType::I64 | ValType::F32 | ValType::F64 | ValType::Bot)
+            matches!(
+                ty,
+                ValType::I32 | ValType::I64 | ValType::F32 | ValType::F64 | ValType::Bot
+            )
         }
 
-        fn is_vec(ty : ValType) -> bool {
+        fn is_vec(ty: ValType) -> bool {
             ty == ValType::V128
         }
 
-        fn is_ref(ty : ValType) -> bool {
+        fn is_ref(ty: ValType) -> bool {
             !(is_num(ty) || is_vec(ty)) || ty == ValType::Bot
         }
 
@@ -750,33 +753,38 @@ impl Module {
                 && f1.outputs().zip(f2.outputs()).all(|(t1, t2)| t1 == t2)
         }
 
-        fn matches_null(null1 : bool, null2 : bool) -> bool {
+        fn matches_null(null1: bool, null2: bool) -> bool {
             null1 == null2 || null2
         }
 
-        let matches_heap = |ty1 : HeapType, ty2 : HeapType, types: &TypeList| -> bool {
+        let matches_heap = |ty1: HeapType, ty2: HeapType, types: &TypeList| -> bool {
             match (ty1, ty2) {
                 (HeapType::Index(n1), HeapType::Index(n2)) => {
                     // Check whether the defined types are (structurally) equivalent.
-                    let n1 = self.func_type_at(n1, types, 0).expect("TODO fixme bad type");
-                    let n2 = self.func_type_at(n2, types, 0).expect("TODO fixme bad type");
+                    let n1 = self
+                        .func_type_at(n1, types, 0)
+                        .expect("TODO fixme bad type");
+                    let n2 = self
+                        .func_type_at(n2, types, 0)
+                        .expect("TODO fixme bad type");
                     eq_fns(n1, n2)
-                },
+                }
                 (HeapType::Index(_), HeapType::Func) => true,
                 (HeapType::Bot, _) => true,
-                (_, _) => ty1 == ty2
+                (_, _) => ty1 == ty2,
             }
         };
 
-        let matches_ref = |ty1 : RefType, ty2 : RefType, types: &TypeList| -> bool {
-            matches_heap(ty1.heap_type, ty2.heap_type, types) && matches_null(ty1.nullable, ty2.nullable)
+        let matches_ref = |ty1: RefType, ty2: RefType, types: &TypeList| -> bool {
+            matches_heap(ty1.heap_type, ty2.heap_type, types)
+                && matches_null(ty1.nullable, ty2.nullable)
         };
 
         match (ty1, ty2) {
             (ValType::Bot, _) => true,
             (_, ValType::Bot) => false,
             (ValType::Ref(rt1), ValType::Ref(rt2)) => matches_ref(rt1, rt2, types),
-            (ty1, ty2) => is_num(ty1) && is_num(ty2) && ty1 == ty2
+            (ty1, ty2) => is_num(ty1) && is_num(ty2) && ty1 == ty2,
         }
     }
 

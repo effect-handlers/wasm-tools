@@ -856,7 +856,14 @@ impl OperatorValidator {
                 fn is_num_opt(ty: Option<ValType>) -> bool {
                     match ty {
                         None => true,
-                        Some(ty) => matches!(ty, ValType::I32 | ValType::I64 | ValType::F32 | ValType::F64 | ValType::Bot)
+                        Some(ty) => matches!(
+                            ty,
+                            ValType::I32
+                                | ValType::I64
+                                | ValType::F32
+                                | ValType::F64
+                                | ValType::Bot
+                        ),
                     }
                 }
                 if !is_num_opt(ty1) || !is_num_opt(ty2) {
