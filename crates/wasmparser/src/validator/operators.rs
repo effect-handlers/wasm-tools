@@ -263,7 +263,7 @@ impl OperatorValidator {
         };
         if let (Some(actual_ty), Some(expected_ty)) = (actual, expected) {
             let bad = if self.features.function_references {
-                !subtype(actual_ty, expected_ty, resources)
+                !matches(actual_ty, expected_ty, resources)
             } else {
                 actual_ty != expected_ty
             };
@@ -812,18 +812,13 @@ impl OperatorValidator {
                 self.pop_operand(Some(ValType::I32), resources)?;
                 let ty1 = self.pop_operand(None, resources)?;
                 let ty2 = self.pop_operand(None, resources)?;
-                fn is_num(ty: Option<ValType>) -> bool {
-                    matches!(
-                        ty,
-                        Some(ValType::I32)
-                            | Some(ValType::I64)
-                            | Some(ValType::F32)
-                            | Some(ValType::F64)
-                            | Some(ValType::V128)
-                            | None
-                    )
+                fn is_num_opt(ty: Option<ValType>) -> bool {
+                    match ty {
+                        None => true,
+                        Some(ty) => is_num(ty)
+                    }
                 }
-                if !is_num(ty1) || !is_num(ty2) {
+                if !is_num_opt(ty1) || !is_num_opt(ty2) {
                     bail_op_err!("type mismatch: select only takes integral types")
                 }
                 if ty1 != ty2 && ty1 != None && ty2 != None {
@@ -2259,55 +2254,98 @@ fn ty_to_str(ty: ValType) -> String {
     }
 }
 
-fn eq_fns(f1: &impl WasmFuncType, f2: &impl WasmFuncType) -> bool {
-    f1.len_inputs() == f2.len_inputs()
-        && f2.len_outputs() == f2.len_outputs()
-        && f1.inputs().zip(f2.inputs()).all(|(t1, t2)| t1 == t2)
-        && f1.outputs().zip(f2.outputs()).all(|(t1, t2)| t1 == t2)
+// fn eq_fns(f1: &impl WasmFuncType, f2: &impl WasmFuncType) -> bool {
+//     f1.len_inputs() == f2.len_inputs()
+//         && f2.len_outputs() == f2.len_outputs()
+//         && f1.inputs().zip(f2.inputs()).all(|(t1, t2)| t1 == t2)
+//         && f1.outputs().zip(f2.outputs()).all(|(t1, t2)| t1 == t2)
+// }
+
+// fn is_num(ty: Option<ValType>) -> bool {
+//     matches!(
+//         ty,
+//         Some(ValType::I32)
+//             | Some(ValType::I64)
+//             | Some(ValType::F32)
+//             | Some(ValType::F64)
+//             | Some(ValType::V128)
+//             | None
+//     )
+// }
+
+fn is_num(ty: ValType) -> bool {
+    matches!(ty, ValType::I32 | ValType::I64 | ValType::F32 | ValType::F64 | ValType::Bot)
 }
 
-fn matches_null(null1: bool, null2: bool) -> bool {
+fn is_vec(ty : Option<ValType>) -> bool {
+    matches!(ty, Some(ValType::V128) | None)
+}
+
+fn is_ref(ty : Option<ValType>) -> bool {
+    !(is_num(ty) || is_vec(ty)) || t == Some(Bot)
+}
+
+fn matches_null(null1 : bool, null2 : bool) -> bool {
     null1 == null2 || null2
 }
 
-/// Returns t1 <: t2 according to the typed function references proposal
-fn subtype(t1: ValType, t2: ValType, resources: &impl WasmModuleResources) -> bool {
-    // Actually, function equality is not simple. It may include a reference,
-    // which itself requires function equality.  Cycles? idk
-    let heap_subtype = |t1: HeapType, t2: HeapType| match (t1, t2) {
-        (HeapType::Index(_) | HeapType::Func, HeapType::Func) => true,
-        (HeapType::Extern, HeapType::Func) => {
-            eprintln!("WARNING: i'm not sure if extern is a func type");
-            false
-        }
-        (HeapType::Index(i1), HeapType::Index(i2))
-            if match (
-                resources.type_of_function(i1),
-                resources.type_of_function(i2),
-            ) {
-                (Some(t1), Some(t2)) => eq_fns(t1, t2),
-                _ => false,
-            } =>
-        {
-            true
-        }
-        _ => false,
-    };
-    match (t1, t2) {
-        _ if t1 == t2 => true,
-        (ValType::Ref(r1), ValType::Ref(r2)) => match (r1, r2) {
-            (
-                RefType {
-                    nullable: nl1,
-                    heap_type: ht1,
-                },
-                RefType {
-                    nullable: nl2,
-                    heap_type: ht2,
-                },
-            ) if heap_subtype(ht1, ht2) && matches_null(nl1, nl2) => true,
-            _ => false,
-        },
-        _ => false,
+fn matches_heap(ty1 : HeapType, ty2 : HeapType, resources: &impl WasmModuleResources) -> bool {
+    match (ty1, ty2) {
+        (HeapType::Index(n1), HeapType::Index(n2)) =>
+            // Check whether the defined types are (structurally) equivalent.
+            resources.type_of_function(n1) == resources.type_of_function(n2),
+        (HeapType::Index(_), HeapType::Func) => true,
+        (HeapType::Bot, _) => true,
+        (_, _) => ty1 == ty2
     }
 }
+
+fn matches_ref(ty1 : RefType, ty2 : RefType, resources: &impl WasmModuleResources) -> bool {
+    matches_heap(ty1.heap_type, ty2.heap_type, resources) && matches_null(ty1.nullable, ty2.nullable)
+}
+
+fn matches(ty1 : ValType, ty2 : ValType, resources: &impl WasmModuleResources) -> bool {
+    (is_num(ty1) && is_num(ty2) && ty1 == ty2) || (is_ref(Some(ty1)) && is_ref(Some(ty2)) && matches_ref(ty1, ty2, resources)) || ty1 == ValType::Bot
+}
+
+// /// Returns t1 <: t2 according to the typed function references proposal
+// fn subtype(t1: ValType, t2: ValType, resources: &impl WasmModuleResources) -> bool {
+//     // Actually, function equality is not simple. It may include a reference,
+//     // which itself requires function equality.  Cycles? idk
+//     let heap_subtype = |t1: HeapType, t2: HeapType| match (t1, t2) {
+//         (HeapType::Index(_) | HeapType::Func, HeapType::Func) => true,
+//         (HeapType::Extern, HeapType::Func) => {
+//             eprintln!("WARNING: i'm not sure if extern is a func type");
+//             false
+//         }
+//         (HeapType::Index(i1), HeapType::Index(i2))
+//             if match (
+//                 resources.type_of_function(i1),
+//                 resources.type_of_function(i2),
+//             ) {
+//                 (Some(t1), Some(t2)) => eq_fns(t1, t2),
+//                 _ => false,
+//             } =>
+//         {
+//             true
+//         }
+//         _ => false,
+//     };
+//     match (t1, t2) {
+//         _ if t1 == t2 => true,
+//         (ValType::Ref(r1), ValType::Ref(r2)) => match (r1, r2) {
+//             (
+//                 RefType {
+//                     nullable: nl1,
+//                     heap_type: ht1,
+//                 },
+//                 RefType {
+//                     nullable: nl2,
+//                     heap_type: ht2,
+//                 },
+//             ) if heap_subtype(ht1, ht2) && matches_null(nl1, nl2) => true,
+//             _ => false,
+//         },
+//         _ => false,
+//     }
+// }
