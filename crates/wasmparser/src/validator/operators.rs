@@ -412,7 +412,7 @@ impl OperatorValidator {
         resources: impl WasmModuleResources,
     ) -> OperatorValidatorResult<()> {
         match heap_type {
-            HeapType::Func | HeapType::Extern => (),
+            HeapType::Func | HeapType::Extern | HeapType::Bot => (),
             HeapType::Index(type_index) => {
                 // Just check that the index is valid
                 func_type_at(&resources, type_index)?;
@@ -2377,6 +2377,7 @@ fn label_types(
 
 fn ty_to_str(ty: ValType) -> String {
     match ty {
+        ValType::Bot => "bot".into(),
         ValType::I32 => "i32".into(),
         ValType::I64 => "i64".into(),
         ValType::F32 => "f32".into(),
@@ -2395,6 +2396,7 @@ fn ty_to_str(ty: ValType) -> String {
                     HeapType::Func => "func".into(),
                     HeapType::Extern => "extern".into(),
                     HeapType::Index(i) => format!("{}", i),
+                    HeapType::Bot => "bot".into(),
                 }
             ),
         },
@@ -2438,11 +2440,12 @@ fn matches_null(null1 : bool, null2 : bool) -> bool {
 
 fn matches_heap(ty1 : HeapType, ty2 : HeapType, resources: &impl WasmModuleResources) -> bool {
     match (ty1, ty2) {
-        (HeapType::Index(n1), HeapType::Index(n2)) =>
+        (HeapType::Index(n1), HeapType::Index(n2)) => {
            // Check whether the defined types are (structurally) equivalent.
            let n1 = resources.type_of_function(n1).expect("bad type");
            let n2 = resources.type_of_function(n2).expect("also a bad type");
-           eq_fns(n1, n2),
+           eq_fns(n1, n2)
+        },
         (HeapType::Index(_), HeapType::Func) => true,
         (HeapType::Bot, _) => true,
         (_, _) => ty1 == ty2
@@ -2454,13 +2457,12 @@ fn matches_ref(ty1 : RefType, ty2 : RefType, resources: &impl WasmModuleResource
 }
 
 fn matches(ty1 : ValType, ty2 : ValType, resources: &impl WasmModuleResources) -> bool {
-    (is_num(ty1) && is_num(ty2) && ty1 == ty2)
- || (is_ref(ty1) && is_ref(ty2)
-     && (match (ty1, ty2) {
-         (ValType::Bot, _) => true,
-         (_, ValType::Bot) => false,
-         (ValType::Ref(rt1), ValType::Ref(rt2)) => matches_ref(ty1, ty2, resources),
-     }) || ty1 == ValType::Bot
+    match (ty1, ty2) {
+        (ValType::Bot, _) => true,
+        (_, ValType::Bot) => false,
+        (ValType::Ref(rt1), ValType::Ref(rt2)) => matches_ref(rt1, rt2, resources),
+        (ty1, ty2) => is_num(ty1) && is_num(ty2) && ty1 == ty2
+    }
 }
 
 // /// Returns t1 <: t2 according to the typed function references proposal

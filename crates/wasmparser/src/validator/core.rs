@@ -182,7 +182,8 @@ impl ModuleState {
                     ));
                 }
             }
-            HeapType::Func | HeapType::Extern => {}
+            HeapType::Func | HeapType::Extern => {},
+            HeapType::Bot => panic!("Unexpected bot")
         }
         match e.kind {
             ElementKind::Active {
@@ -611,7 +612,8 @@ impl Module {
                     return Err(BinaryReaderError::new("element is not anyfunc", offset));
                 }
                 self.func_type_at(i, types, offset)?;
-            }
+            },
+            HeapType::Bot => todo!()
         }
         self.check_limits(ty.initial, ty.maximum, offset)?;
         if ty.initial > MAX_WASM_TABLE_ENTRIES as u32 {
@@ -722,7 +724,8 @@ impl Module {
             HeapType::Index(type_index) => {
                 // Just check that the index is valid
                 self.func_type_at(type_index, types, offset)?;
-            }
+            },
+            HeapType::Bot => (),
         }
         Ok(())
     }
