@@ -296,32 +296,6 @@ impl OperatorValidator {
             }
         };
         Ok(actual)
-        // let control = self.control.last().unwrap();
-        // let actual = if self.operands.len() == control.height {
-        //     if control.unreachable {
-        //         ValType::Bot
-        //     } else {
-        //         let desc = match expected {
-        //             Some(ty) => ty_to_str(ty),
-        //             None => "a type".into(),
-        //         };
-        //         bail_op_err!("type mismatch: expected {} but nothing on stack", desc)
-        //     }
-        // } else {
-        //     self.operands.pop().unwrap()
-        // };
-        // if let Some(expected_ty) = expected {
-        //     // Comment(dhil): I think it is safe to remove this guard
-        //     // here. The matches relation is conservative.
-        //     if !resources.matches(actual, expected_ty) {
-        //         bail_op_err!(
-        //             "type mismatch: expected {}, found {}",
-        //             ty_to_str(expected_ty),
-        //             ty_to_str(actual)
-        //         )
-        //     }
-        // }
-        // Ok(actual)
     }
 
     fn pop_ref(
