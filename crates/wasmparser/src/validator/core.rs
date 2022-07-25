@@ -731,21 +731,6 @@ impl Module {
     }
 
     pub(crate) fn matches(&self, ty1: ValType, ty2: ValType, types: &TypeList) -> bool {
-        fn is_num(ty: ValType) -> bool {
-            matches!(
-                ty,
-                ValType::I32 | ValType::I64 | ValType::F32 | ValType::F64 | ValType::Bot
-            )
-        }
-
-        fn is_vec(ty: ValType) -> bool {
-            ty == ValType::V128
-        }
-
-        fn is_ref(ty: ValType) -> bool {
-            !(is_num(ty) || is_vec(ty)) || ty == ValType::Bot
-        }
-
         fn eq_fns(f1: &impl WasmFuncType, f2: &impl WasmFuncType) -> bool {
             f1.len_inputs() == f2.len_inputs()
                 && f2.len_outputs() == f2.len_outputs()
@@ -784,7 +769,15 @@ impl Module {
             (ValType::Bot, _) => true,
             (_, ValType::Bot) => false,
             (ValType::Ref(rt1), ValType::Ref(rt2)) => matches_ref(rt1, rt2, types),
-            (ty1, ty2) => is_num(ty1) && is_num(ty2) && ty1 == ty2,
+            (ValType::Ref(_), _) => false,
+            // This is not in the spec right now.  According to the spec,
+            // though it appears to be an omission as far as I can tell,
+            // matches V128 V128 = false
+            (ValType::V128, ty2) => ty1 == ty2,
+            // inlined is_num (for exhaustiveness checking)
+            // Bot is covered by first two cases
+            // is_num(ty1) /\ ty1 == ty2 ==> is_num(ty2)
+            (ValType::I32 | ValType::I64 | ValType::F32 | ValType::F64, ty2) => ty1 == ty2,
         }
     }
 

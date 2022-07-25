@@ -853,20 +853,19 @@ impl OperatorValidator {
                 self.pop_operand(Some(ValType::I32), resources)?;
                 let ty1 = self.pop_operand(None, resources)?;
                 let ty2 = self.pop_operand(None, resources)?;
-                fn is_num_opt(ty: Option<ValType>) -> bool {
-                    match ty {
-                        None => true,
-                        Some(ty) => matches!(
-                            ty,
-                            ValType::I32
-                                | ValType::I64
-                                | ValType::F32
-                                | ValType::F64
-                                | ValType::Bot
-                        ),
-                    }
+                fn is_num(ty: Option<ValType>) -> bool {
+                    matches!(
+                        ty,
+                        Some(ValType::I32)
+                            | Some(ValType::I64)
+                            | Some(ValType::F32)
+                            | Some(ValType::F64)
+                            | Some(ValType::V128)
+                            | Some(ValType::Bot)
+                            | None
+                    )
                 }
-                if !is_num_opt(ty1) || !is_num_opt(ty2) {
+                if !is_num(ty1) || !is_num(ty2) {
                     bail_op_err!("type mismatch: select only takes integral types")
                 }
                 if ty1 != ty2 && ty1 != None && ty2 != None {
