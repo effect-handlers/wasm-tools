@@ -772,7 +772,7 @@ impl OperatorValidator {
                     self.push_operand(ty, resources)?;
                 }
             }
-                        Operator::BrOnNull { relative_depth } => {
+            Operator::BrOnNull { relative_depth } => {
                 self.check_function_references_enabled()?;
                 let rt = self.pop_ref(resources)?;
                 let (ft, kind) = self.jump(relative_depth)?;
