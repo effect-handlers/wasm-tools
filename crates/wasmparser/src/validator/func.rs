@@ -157,7 +157,7 @@ mod tests {
             todo!()
         }
         fn check_value_type(&self, _t: ValType, _features: &WasmFeatures, _offset: usize) -> Result<()> {
-            todo!()
+            Ok(())
         }
         fn element_type_at(&self, _at: u32) -> Option<crate::RefType> {
             todo!()
