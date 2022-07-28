@@ -614,12 +614,6 @@ impl OperatorValidator {
     ) -> OperatorValidatorResult<()> {
         for expected in results(self.control[0].block_type, resources)?.rev() {
             let actual = self.pop_operand(Some(expected), resources)?;
-            if !resources.matches(actual, expected) {
-                bail_op_err!(
-                    "type mismatch: expected {}, found {}",
-                    ty_to_str(expected),
-                    ty_to_str(actual)
-                );
             }
         }
         self.unreachable();
