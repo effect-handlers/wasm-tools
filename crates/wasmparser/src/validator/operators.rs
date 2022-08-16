@@ -2236,6 +2236,28 @@ impl OperatorValidator {
                 self.pop_operand(Some(ValType::Ref(ty)), resources)?;
                 self.pop_operand(Some(ValType::I32), resources)?;
             }
+
+            // Typed continuations operators.
+            // TODO(dhil) fixme: merge into the above list.
+            Operator::ContNew { type_index } => {
+                let rt = self.pop_ref(resources)?;
+                todo!("Implement ContNew")
+            }
+            Operator::ContBind { type_index: _ } => {
+                todo!("Implement ContBind")
+            }
+            Operator::Suspend { tag_index: _ } => {
+                todo!("Implement Suspend")
+            }
+            Operator::Resume { table: _ } => {
+                todo!("Implement Resume")
+            }
+            Operator::ResumeThrow { tag_index: _ } => {
+                todo!("Implement ResumeThrow")
+            }
+            Operator::Barrier { ty: _ } => {
+                todo!("Implement Barrier")
+            }
         }
         Ok(())
     }
@@ -2367,6 +2389,6 @@ fn ty_to_str(ty: ValType) -> String {
                     HeapType::Bot => "bot".into(),
                 }
             ),
-        },
+        }
     }
 }
