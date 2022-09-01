@@ -331,7 +331,7 @@ impl<'resources, R: WasmModuleResources> OperatorValidatorTemp<'_, 'resources, R
     /// If `Some(T)` is returned then `T` was popped from the operand stack and
     /// matches `expected`. If `Bot` is returned then it means that `None` was
     /// expected and the current block is unreachable.
-    fn pop_operand(&mut self, offset: usize, expected: Option<ValType>) -> Result<ValType> {
+    fn pop_operand(&mut self, offset: usize, expected: Option<ValType>) -> Result<Option<ValType>> {
         // This method is one of the hottest methods in the validator so to
         // improve codegen this method contains a fast-path success case where
         // if the top operand on the stack is as expected it's returned
@@ -348,7 +348,7 @@ impl<'resources, R: WasmModuleResources> OperatorValidatorTemp<'_, 'resources, R
                 if actual_ty == expected {
                     if let Some(control) = self.control.last() {
                         if self.operands.len() >= control.height {
-                            return Ok(actual_ty);
+                            return Ok(Some(actual_ty)); // TODO(dhil): check that the payload is exactly the same value as returned by operands.pop() above.
                         }
                     }
                 }
@@ -370,14 +370,14 @@ impl<'resources, R: WasmModuleResources> OperatorValidatorTemp<'_, 'resources, R
         offset: usize,
         expected: Option<ValType>,
         popped: Option<ValType>,
-    ) -> Result<ValType> {
+    ) -> Result<Option<ValType>> {
         self.operands.extend(popped);
         let control = match self.control.last() {
             Some(c) => c,
             None => return Err(self.err_beyond_end(offset)),
         };
-        let actual_ty = if self.operands.len() == control.height && control.unreachable {
-            ValType::Bot
+        let actual = if self.operands.len() == control.height && control.unreachable {
+            None
         } else {
             if self.operands.len() == control.height {
                 let desc = match expected {
@@ -389,35 +389,45 @@ impl<'resources, R: WasmModuleResources> OperatorValidatorTemp<'_, 'resources, R
                     "type mismatch: expected {desc} but nothing on stack"
                 )
             } else {
-                self.operands.pop().unwrap()
+                self.operands.pop()
             }
         };
-        let actual = match expected {
-            None => actual_ty,
-            Some(expected_ty) => {
-                if !self.resources.matches(actual_ty, expected_ty) {
+        if !self.resources.matches(actual, expected) {
+            match (actual, expected) {
+                (Some(actual_ty), Some(expected_ty))=>
                     bail!(
                         offset,
                         "type mismatch: expected {}, found {}",
                         ty_to_str(expected_ty),
-                        ty_to_str(actual_ty)
-                    );
-                } else {
-                    actual_ty
-                }
+                        ty_to_str(actual_ty )
+                    ),
+                (None, Some(expected_ty)) =>
+                    bail!(
+                        offset,
+                        "type mismatch: expected {}, found bot",
+                        ty_to_str(expected_ty),
+                    ),
+                (Some(actual_ty), None) =>
+                    bail!(
+                        offset,
+                        "type mismatch: expected bot, found {}",
+                        ty_to_str(actual_ty),
+                    ),
+                (None, None) => unreachable!(),
             }
-        };
-        Ok(actual)
+        } else {
+            Ok(actual)
+        }
     }
 
     fn pop_ref(&mut self, offset: usize) -> Result<RefType> {
         match self.pop_operand(offset, None)? {
-            ValType::Bot => Ok(RefType {
+            None => Ok(RefType {
                 nullable: false,
                 heap_type: HeapType::Bot,
             }),
-            ValType::Ref(rt) => Ok(rt),
-            ty => bail!(
+            Some(ValType::Ref(rt)) => Ok(rt),
+            Some(ty) => bail!(
                 offset,
                 "type mismatch: expected ref but found {}",
                 ty_to_str(ty)
@@ -706,7 +716,7 @@ impl<'resources, R: WasmModuleResources> OperatorValidatorTemp<'_, 'resources, R
             Some(tab) => {
                 if !self
                     .resources
-                    .matches(ValType::Ref(tab.element_type), ValType::Ref(FUNC_REF))
+                    .matches(Some(ValType::Ref(tab.element_type)), Some(ValType::Ref(FUNC_REF)))
                 {
                     bail!(
                         offset,
@@ -1022,7 +1032,6 @@ fn ty_to_str(ty: ValType) -> &'static str {
             nullable: false,
             heap_type: HeapType::Bot,
         }) => "(ref bot)",
-        ValType::Bot => "bot",
     }
 }
 
@@ -1217,7 +1226,7 @@ where
             debug_assert!(self.br_table_tmp.is_empty());
             for ty in tys.rev() {
                 let ty = self.pop_operand(offset, Some(ty))?;
-                self.br_table_tmp.push(ty);
+                self.br_table_tmp.push(ty.unwrap());
             }
             for ty in self.inner.br_table_tmp.drain(..).rev() {
                 self.inner.operands.push(ty);
@@ -1252,7 +1261,7 @@ where
         };
         if !self
             .resources
-            .matches(ValType::Ref(rt), ValType::Ref(expected))
+            .matches(Some(ValType::Ref(rt)), Some(ValType::Ref(expected)))
         {
             bail!(
                 offset,
@@ -1261,7 +1270,7 @@ where
         }
         match ty {
             HeapType::Index(type_index) => self.check_call_ty(offset, type_index)?,
-            HeapType::Bot => (),
+            HeapType::Bot => {},
             _ => bail!(
                 offset,
                 "type mismatch: instruction requires function reference type",
@@ -1306,27 +1315,27 @@ where
         self.pop_operand(offset, Some(ValType::I32))?;
         let ty1 = self.pop_operand(offset, None)?;
         let ty2 = self.pop_operand(offset, None)?;
-        fn is_num(ty: ValType) -> bool {
+        fn is_num(ty: Option<ValType>) -> bool {
             matches!(
                 ty,
-                ValType::I32
-                    | ValType::I64
-                    | ValType::F32
-                    | ValType::F64
-                    | ValType::V128
-                    | ValType::Bot
+                Some(ValType::I32)
+                    | Some(ValType::I64)
+                    | Some(ValType::F32)
+                    | Some(ValType::F64)
+                    | Some(ValType::V128)
+                    | None
             )
         }
         if !is_num(ty1) || !is_num(ty2) {
             bail!(offset, "type mismatch: select only takes integral types")
         }
-        if ty1 != ty2 && ty1 != ValType::Bot && ty2 != ValType::Bot {
+        if ty1 != ty2 && ty1 != None && ty2 != None {
             bail!(
                 offset,
                 "type mismatch: select operands have different types"
             );
         }
-        self.push_operand(if ty1 == ValType::Bot { ty2 } else { ty1 })?;
+        self.push_operand(if ty1 == None { ty2.unwrap() } else { ty1.unwrap() })?; // TODO(dhil) FIXME: bot might be pushed here...
         Ok(())
     }
     fn visit_typed_select(&mut self, offset: usize, ty: ValType) -> Self::Output {
@@ -2183,12 +2192,12 @@ where
     fn visit_ref_null(&mut self, offset: usize, heap_type: HeapType) -> Self::Output {
         self.check_reference_types_enabled(offset)?;
         match heap_type {
-            HeapType::Extern | HeapType::Func | HeapType::Bot => {}
-            HeapType::Index(_) => self.check_function_references_enabled(offset)?,
+            HeapType::Extern | HeapType::Func => {}
+            HeapType::Index(_) | HeapType::Bot => self.check_function_references_enabled(offset)?,
         }
         self.push_operand(ValType::Ref(RefType {
             nullable: true,
-            heap_type,
+            heap_type: heap_type,
         }))?;
         Ok(())
     }
@@ -2233,7 +2242,7 @@ where
                 ty_to_str(rt0)
             ),
             Some(rt1 @ ValType::Ref(_)) => {
-                if !self.resources.matches(rt0, rt1) {
+                if !self.resources.matches(Some(rt0), Some(rt1)) {
                     bail!(
                         offset,
                         "type mismatch: expected {} but found {}",
@@ -3287,8 +3296,8 @@ where
             _ => bail!(offset, "table index out of bounds"),
         };
         if !self.resources.matches(
-            ValType::Ref(src.element_type),
-            ValType::Ref(dst.element_type),
+            Some(ValType::Ref(src.element_type)),
+            Some(ValType::Ref(dst.element_type)),
         ) {
             bail!(offset, "type mismatch");
         }

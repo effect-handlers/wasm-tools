@@ -207,7 +207,7 @@ mod tests {
         fn element_type_at(&self, _at: u32) -> Option<crate::RefType> {
             todo!()
         }
-        fn matches(&self, _t1: ValType, _t2: ValType) -> bool {
+        fn matches(&self, _t1: Option<ValType>, _t2: Option<ValType>) -> bool {
             todo!()
         }
         fn element_count(&self) -> u32 {

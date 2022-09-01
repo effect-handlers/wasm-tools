@@ -219,7 +219,7 @@ pub trait WasmModuleResources {
     fn element_type_at(&self, at: u32) -> Option<RefType>;
     /// Under the function references proposal, returns whether t1 <=
     /// t2. Otherwise, returns whether t1 == t2
-    fn matches(&self, t1: ValType, t2: ValType) -> bool;
+    fn matches(&self, t1: Option<ValType>, t2: Option<ValType>) -> bool;
     /// Check a value type. This requires using func_type_at to check references
     fn check_value_type(
         &self,
@@ -275,7 +275,7 @@ where
     fn element_type_at(&self, at: u32) -> Option<RefType> {
         T::element_type_at(self, at)
     }
-    fn matches(&self, t1: ValType, t2: ValType) -> bool {
+    fn matches(&self, t1: Option<ValType>, t2: Option<ValType>) -> bool {
         T::matches(self, t1, t2)
     }
 
@@ -337,7 +337,7 @@ where
         T::element_type_at(self, at)
     }
 
-    fn matches(&self, t1: ValType, t2: ValType) -> bool {
+    fn matches(&self, t1: Option<ValType>, t2: Option<ValType>) -> bool {
         T::matches(self, t1, t2)
     }
 

@@ -185,7 +185,7 @@ impl ModuleState {
                 let table = self.module.table_at(table_index, offset)?;
                 if !self
                     .module
-                    .matches(ValType::Ref(e.ty), ValType::Ref(table.element_type), types)
+                    .matches(Some(ValType::Ref(e.ty)), Some(ValType::Ref(table.element_type)), types)
                 {
                     return Err(BinaryReaderError::new(
                         format!(
@@ -783,12 +783,11 @@ impl Module {
     fn check_ref_type(&self, ty: RefType, types: &TypeList, offset: usize) -> Result<()> {
         // Check that the heap type is valid
         match ty.heap_type {
-            HeapType::Func | HeapType::Extern => (),
+            HeapType::Func | HeapType::Extern | HeapType::Bot => (),
             HeapType::Index(type_index) => {
                 // Just check that the index is valid
                 self.func_type_at(type_index, types, offset)?;
             }
-            HeapType::Bot => (),
         }
         Ok(())
     }
@@ -798,8 +797,8 @@ impl Module {
             (ValType::Ref(rt1), ValType::Ref(rt2)) => {
                 rt1.nullable == rt2.nullable
                     && match (rt1.heap_type, rt2.heap_type) {
-                        (HeapType::Func, HeapType::Func) => true,
-                        (HeapType::Extern, HeapType::Extern) => true,
+                        (HeapType::Func,      HeapType::Func) => true,
+                        (HeapType::Extern,    HeapType::Extern) => true,
                         (HeapType::Index(n1), HeapType::Index(n2)) => {
                             let n1 = self.func_type_at(n1, types, 0).unwrap();
                             let n2 = self.func_type_at(n2, types, 0).unwrap();
@@ -824,7 +823,7 @@ impl Module {
                 .all(|(t1, t2)| self.eq_valtypes(t1, t2, types))
     }
 
-    pub(crate) fn matches(&self, ty1: ValType, ty2: ValType, types: &TypeList) -> bool {
+    pub(crate) fn matches(&self, ty1: Option<ValType>, ty2: Option<ValType>, types: &TypeList) -> bool {
         fn matches_null(null1: bool, null2: bool) -> bool {
             (null1 == null2) || null2
         }
@@ -849,9 +848,10 @@ impl Module {
         };
 
         match (ty1, ty2) {
-            (ValType::Ref(rt1), ValType::Ref(rt2)) => matches_ref(rt1, rt2, types),
-            (ValType::Bot, _) => true,
-            (_, _) => ty1 == ty2,
+            (Some(ValType::Ref(rt1)), Some(ValType::Ref(rt2))) => matches_ref(rt1, rt2, types),
+            (Some(ty1), Some(ty2)) => ty1 == ty2,
+            (None, _) => true,
+            (_, None) => false,
         }
     }
 
@@ -1081,7 +1081,7 @@ impl WasmModuleResources for OperatorValidatorResources<'_> {
         self.module.element_types.get(at as usize).cloned()
     }
 
-    fn matches(&self, t1: ValType, t2: ValType) -> bool {
+    fn matches(&self, t1: Option<ValType>, t2: Option<ValType>) -> bool {
         self.module.matches(t1, t2, self.types)
     }
 
@@ -1150,7 +1150,7 @@ impl WasmModuleResources for ValidatorResources {
         self.0.element_types.get(at as usize).cloned()
     }
 
-    fn matches(&self, t1: ValType, t2: ValType) -> bool {
+    fn matches(&self, t1: Option<ValType>, t2: Option<ValType>) -> bool {
         self.0.matches(t1, t2, self.0.snapshot.as_ref().unwrap())
     }
 
