@@ -295,6 +295,7 @@ impl<'a> BinaryReader<'a> {
     pub(crate) fn read_type(&mut self) -> Result<Type> {
         Ok(match self.read_u8()? {
             0x60 => Type::Func(self.read_func_type()?),
+            0x5f => Type::Cont(self.read_u32()?),
             x => return self.invalid_leading_byte(x, "type"),
         })
     }

@@ -2240,20 +2240,90 @@ impl OperatorValidator {
             // Typed continuations operators.
             // TODO(dhil) fixme: merge into the above list.
             Operator::ContNew { type_index } => {
-                let rt = self.pop_ref(resources)?;
-                todo!("Implement ContNew")
+                let rt = RefType { heap_type: HeapType::Index(type_index), nullable: true };
+                self.pop_operand(Some(ValType::Ref(rt)), resources)?;
             }
-            Operator::ContBind { type_index: _ } => {
-                todo!("Implement ContBind")
+            Operator::ContBind { type_index } => {
+                let ft2 = cont_type_at(resources, type_index)?;
+                let ft1 = match self.pop_ref(resources)? {
+                    RefType { heap_type: HeapType::Index(type_index), .. } => cont_type_at(resources, type_index)?,
+                    _ => panic!("error computing tp1len"),
+                };
+
+                if ft2.inputs().len() > ft1.inputs().len() {
+                    panic!("mismatch error") // TODO(dhil): tidy up
+                }
+
+                let mut ft2ins = ft2.inputs().rev();
+                let mut ft1ins = ft1.inputs().rev();
+
+                loop {
+                    match ft2ins.next() {
+                        None => break,
+                        Some(ty2) => {
+                            let ty1 = if let Some(ty1) = ft1ins.next() { ty1 } else { panic!("error") /* TODO(dhil): tidy up */ };
+                            if !resources.matches(ty1, ty2) {
+                                panic!("Type error") // TODO(dhil): tidy up
+                            }
+                        }
+                    }
+                }
+
+                for ty in ft1ins {
+                    self.pop_operand(Some(ty), resources)?;
+                }
+
+
+                let ft2outs = ft2.outputs().rev();
+                let ft1outs = ft1.outputs().rev();
+                if ft1outs.len() != ft2outs.len() {
+                    panic!("Mismatch error") // TODO(dhil): tidy up
+                }
+                for (ty1, ty2) in ft1outs.zip(ft2outs) {
+                    if !resources.matches(ty1, ty2) {
+                        panic!("Type error") // TODO(dhil): tidy up
+                    }
+                }
+                self.push_operand(ValType::Ref(RefType { heap_type: HeapType::Index(type_index), nullable: true }), resources)?;
             }
-            Operator::Suspend { tag_index: _ } => {
-                todo!("Implement Suspend")
+            Operator::Suspend { tag_index } => {
+                let ft = tag_at(resources, tag_index)?;
+                for ty in ft.inputs().rev() {
+                    self.pop_operand(Some(ty), resources)?;
+                }
+                for ty in ft.outputs() {
+                    self.push_operand(ty, resources)?;
+                }
             }
             Operator::Resume { table: _ } => {
-                todo!("Implement Resume")
+                // TODO(dhil): check that the table is well-formed.
+                let ct = match self.pop_ref(resources)? {
+                    RefType { heap_type: HeapType::Index(type_index), .. } => cont_type_at(resources, type_index)?,
+                    _ => panic!("mismatch error") // TODO(dhil): tidy up
+                };
+
+                for ty in ct.inputs().rev() {
+                    self.pop_operand(Some(ty), resources)?;
+                }
+
+                for ty in ct.outputs() {
+                    self.push_operand(ty, resources)?;
+                }
             }
-            Operator::ResumeThrow { tag_index: _ } => {
-                todo!("Implement ResumeThrow")
+            Operator::ResumeThrow { tag_index } => {
+                let ct = match self.pop_ref(resources)? {
+                    RefType { heap_type: HeapType::Index(type_index), .. } => cont_type_at(resources, type_index)?,
+                    _ => panic!("mismatch error") // TODO(dhil): tidy up
+                };
+                let ft = tag_at(resources, tag_index)?;
+
+                for ty in ft.inputs().rev() {
+                    self.pop_operand(Some(ty), resources)?;
+                }
+
+                for ty in ct.outputs() {
+                    self.push_operand(ty, resources)?;
+                }
             }
             Operator::Barrier { ty: _ } => {
                 todo!("Implement Barrier")
@@ -2274,6 +2344,16 @@ fn func_type_at<T: WasmModuleResources>(
     resources: &T,
     at: u32,
 ) -> OperatorValidatorResult<&T::FuncType> {
+    resources
+        .func_type_at(at)
+        .ok_or_else(|| OperatorValidatorError::new("unknown type: type index out of bounds"))
+}
+
+fn cont_type_at<T: WasmModuleResources>(
+    resources: &T,
+    at: u32,
+) -> OperatorValidatorResult<&T::FuncType> {
+    // TODO(dhil): use `u = cont_type_at(at);` to as input to func_type_at(u)
     resources
         .func_type_at(at)
         .ok_or_else(|| OperatorValidatorError::new("unknown type: type index out of bounds"))

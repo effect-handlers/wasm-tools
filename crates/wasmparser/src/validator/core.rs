@@ -1031,7 +1031,7 @@ impl WasmModuleResources for OperatorValidatorResources<'_> {
     }
 
     fn cont_type_at(&self, at: u32) -> Option<u32> {
-        Some(*self.module.continuations.get(at as usize)?)
+        todo!("Implement cont_type_at")
     }
 
     fn check_value_type(&self, t: ValType, features: &WasmFeatures, offset: usize) -> Result<()> {
