@@ -2240,8 +2240,24 @@ impl OperatorValidator {
             // Typed continuations operators.
             // TODO(dhil) fixme: merge into the above list.
             Operator::ContNew { type_index } => {
-                let rt = RefType { heap_type: HeapType::Index(type_index), nullable: true };
-                self.pop_operand(Some(ValType::Ref(rt)), resources)?;
+                let ct = cont_type_at(resources, type_index)?;
+                let ft = match self.pop_ref(resources)? {
+                    RefType { heap_type: HeapType::Index(type_index), .. } => cont_type_at(resources, type_index)?,
+                    _ => panic!("mismatch error") // TODO(dhil): tidy up
+                };
+                for (ty1, ty2) in ft.inputs().rev().zip(ct.inputs().rev()) {
+                    if !resources.matches(ty1, ty2) {
+                        panic!("type error") // TODO(dhil): tidy up
+                    }
+                }
+
+                for (ty1, ty2) in ft.outputs().zip(ct.outputs()) {
+                    if !resources.matches(ty1, ty2) {
+                        panic!("type error") // TODO(dhil): tidy up
+                    }
+                }
+
+                self.push_operand(ValType::Ref(RefType { heap_type: HeapType::Index(type_index), nullable: true }), resources)?;
             }
             Operator::ContBind { type_index } => {
                 let ft2 = cont_type_at(resources, type_index)?;
@@ -2250,7 +2266,7 @@ impl OperatorValidator {
                     _ => panic!("error computing tp1len"),
                 };
 
-                if ft2.inputs().len() > ft1.inputs().len() {
+                if ft2.inputs().len() < ft1.inputs().len() {
                     panic!("mismatch error") // TODO(dhil): tidy up
                 }
 
