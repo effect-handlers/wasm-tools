@@ -637,6 +637,8 @@ pub enum TypeDef<'a> {
     Struct(StructType<'a>),
     /// An array type definition.
     Array(ArrayType<'a>),
+    /// A continuation type definition.
+    Cont(u32),
 }
 
 impl<'a> Parse<'a> for TypeDef<'a> {
@@ -651,6 +653,9 @@ impl<'a> Parse<'a> for TypeDef<'a> {
         } else if l.peek::<kw::array>() {
             parser.parse::<kw::array>()?;
             Ok(TypeDef::Array(parser.parse()?))
+        } else if l.peek::<kw::cont>() {
+            parser.parse::<kw::cont>()?;
+            Ok(TypeDef::Cont(parser.parse()?))
         } else {
             Err(l.error())
         }
