@@ -157,6 +157,12 @@ impl Encode for ExportType<'_> {
     }
 }
 
+impl Encode for ContinuationType<'_> {
+    fn encode(&self, e: &mut Vec<u8>) {
+        self.idx.encode(e);
+    }
+}
+
 enum RecOrType<'a> {
     Type(&'a Type<'a>),
     Rec(&'a Rec<'a>),

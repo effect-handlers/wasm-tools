@@ -628,6 +628,19 @@ impl<'a> Parse<'a> for ExportType<'a> {
     }
 }
 
+/// A continuation type.
+#[derive(Clone, Debug)]
+pub struct ContinuationType<'a> {
+    /// Function type index.
+    pub idx: Index<'a>,
+}
+
+impl<'a> Parse<'a> for ContinuationType<'a> {
+    fn parse(parser: Parser<'a>) -> Result<Self> {
+        Ok(ContinuationType { idx: parser.parse::<Index<'a>>()? })
+    }
+}
+
 /// A definition of a type.
 #[derive(Debug)]
 pub enum TypeDef<'a> {
@@ -638,7 +651,7 @@ pub enum TypeDef<'a> {
     /// An array type definition.
     Array(ArrayType<'a>),
     /// A continuation type definition.
-    Cont(u32),
+    Cont(ContinuationType<'a>),
 }
 
 impl<'a> Parse<'a> for TypeDef<'a> {
@@ -650,12 +663,12 @@ impl<'a> Parse<'a> for TypeDef<'a> {
         } else if l.peek::<kw::r#struct>() {
             parser.parse::<kw::r#struct>()?;
             Ok(TypeDef::Struct(parser.parse()?))
-        } else if l.peek::<kw::array>() {
-            parser.parse::<kw::array>()?;
-            Ok(TypeDef::Array(parser.parse()?))
         } else if l.peek::<kw::cont>() {
             parser.parse::<kw::cont>()?;
             Ok(TypeDef::Cont(parser.parse()?))
+        } else if l.peek::<kw::array>() {
+            parser.parse::<kw::array>()?;
+            Ok(TypeDef::Array(parser.parse()?))
         } else {
             Err(l.error())
         }
