@@ -55,7 +55,10 @@ impl<'a> Expander<'a> {
                     TypeDef::Func(f) => {
                         f.key().insert(self, Index::Id(id));
                     }
-                    TypeDef::Array(_) | TypeDef::Struct(_) | TypeDef::Cont(_) => {}
+                    TypeDef::Array(_) | TypeDef::Struct(_) => {}
+                    TypeDef::Cont(idx) => {
+                        idx.key().insert(self, Index::Id(id));
+                    }
                 }
             }
             _ => {}
@@ -257,5 +260,33 @@ impl<'a> TypeKey<'a> for FuncKey<'a> {
 
     fn insert(&self, cx: &mut Expander<'a>, idx: Index<'a>) {
         cx.func_type_to_idx.entry(self.clone()).or_insert(idx);
+    }
+}
+
+pub(crate) type ContKey<'a> = Index<'a>;
+
+impl<'a> TypeReference<'a> for ContinuationType<'a> {
+    type Key = ContKey<'a>;
+
+    fn key(&self) -> Self::Key {
+        todo!()
+    }
+
+    fn expand(&mut self, _cx: &mut Expander<'a>) {}
+}
+
+impl<'a> TypeKey<'a> for ContKey<'a> {
+    fn lookup(&self, cx: &Expander<'a>) -> Option<Index<'a>> {
+        todo!()
+    }
+
+    fn to_def(&self, _span: Span) -> TypeDef<'a> {
+        TypeDef::Cont(ContinuationType {
+            idx: *self,
+        })
+    }
+
+    fn insert(&self, cx: &mut Expander<'a>, idx: Index<'a>) {
+        todo!()
     }
 }
