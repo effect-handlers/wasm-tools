@@ -1158,8 +1158,8 @@ instructions! {
         F64x2RelaxedMax : [0xfd, 0xee]: "f64x2.relaxed_max",
 
         // Typed continuations proposal
-        ContNew(ValType<'a>)            : [0xe0] : "cont.new",
-        ContBind(ValType<'a>)           : [0xe1] : "cont.bind",
+        ContNew(TypeUse<'a, ValType<'a>>)            : [0xe0] : "cont.new",
+        ContBind(TypeUse<'a, ValType<'a>>)           : [0xe1] : "cont.bind",
         Suspend(Index<'a>)              : [0xe2] : "suspend",
         Resume(ResumeTableIndices<'a>)  : [0xe3] : "resume",
         ResumeThrow(Index<'a>)          : [0xe4] : "resume_throw",
@@ -1264,7 +1264,7 @@ pub struct ResumeTableIndices<'a> {
 
 impl Peek for (Index<'_>, Index<'_>) {
     fn peek(cursor: Cursor<'_>) -> bool {
-        u32::peek(cursor) && u32::peek2(cursor)
+        Index::peek(cursor) && Index::peek2(cursor)
     }
 
     fn display() -> &'static str {
@@ -1290,9 +1290,13 @@ impl<'a> Parse<'a> for (Index<'a>, Index<'a>) {
 
 impl<'a> Parse<'a> for ResumeTableIndices<'a> {
     fn parse(parser: Parser<'a>) -> Result<Self> {
-        let mut targets = vec![parser.parse()?];
-        while parser.peek::<(Index,Index)>() {
-            targets.push(parser.parse()?);
+        let mut targets = vec![];
+        while parser.peek2::<kw::tag>() {
+            parser.parens(|p| {
+                parser.parse::<kw::tag>()?;
+                targets.push(parser.parse()?);
+                Ok(())
+            })?;
         }
         Ok(ResumeTableIndices { targets })
     }
