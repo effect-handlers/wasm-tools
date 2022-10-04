@@ -629,7 +629,7 @@ impl<'a> Parse<'a> for ExportType<'a> {
 }
 
 /// A continuation type.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ContinuationType<'a> {
     /// Function type index.
     pub idx: Index<'a>,
