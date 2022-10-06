@@ -2633,12 +2633,12 @@ impl<'a> ResumeTable<'a> {
     /// # Examples
     ///
     /// ```rust
-    /// let buf = [0x0e, 0x02, 0x01, 0x02, 0x00];
+    /// let buf = [0xe3, 0x01, 0x00, 0x01, 0x02, 0x00];
     /// let mut reader = wasmparser::BinaryReader::new(&buf);
     /// let op = reader.read_operator().unwrap();
     /// if let wasmparser::Operator::Resume { table } = op {
-    ///     let targets = table.targets().collect::<Result<Vec<_>, _>>().unwrap();
-    ///     assert_eq!(targets, [1, 2]);
+    ///     let targets = table.targets().collect::<Result<Vec<(_,_)>, _>>().unwrap();
+    ///     assert_eq!(targets, [(1, 2)]);
     /// }
     /// ```
     pub fn targets(&self) -> ResumeTableTargets {
