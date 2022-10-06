@@ -2687,7 +2687,7 @@ impl fmt::Debug for ResumeTable<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("ResumeTable");
         f.field("count", &self.cnt);
-        match self.targets().collect::<Result<Vec<_>>>() {
+        match self.targets().collect::<Result<Vec<(_,_)>>>() {
             Ok(targets) => {
                 f.field("targets", &targets);
             }
