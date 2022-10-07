@@ -2630,7 +2630,7 @@ impl<'a> ResumeTable<'a> {
     /// # Examples
     ///
     /// ```rust
-    /// let buf = [0xe3, 0x01, 0x00, 0x01, 0x02, 0x00];
+    /// let buf = [0xe3, 0x01, 0x01, 0x02, 0x00];
     /// let mut reader = wasmparser::BinaryReader::new(&buf);
     /// let op = reader.read_operator().unwrap();
     /// if let wasmparser::Operator::Resume { table } = op {
