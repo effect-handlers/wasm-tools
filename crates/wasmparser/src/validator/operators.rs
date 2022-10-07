@@ -2416,12 +2416,14 @@ impl OperatorValidator {
                            ty_to_str(ValType::Ref(rt)))
                 }
             }
-            Operator::ResumeThrow { tag_index } => {
+            Operator::ResumeThrow { ref table, tag_index } => {
                 let rt = self.pop_ref(resources)?;
                 match rt.heap_type {
                     HeapType::Index(y) => {
                         // ct := ts1 -> ts2
                         let ct = func_type_at(resources, cont_type_at(resources, y)?)?;
+                        self.check_resume_table(resources, table, ct)?;
+
                         // tagtype := ts1' -> []
                         let tagtype = tag_at(resources, tag_index)?;
 

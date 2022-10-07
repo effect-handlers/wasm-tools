@@ -1977,6 +1977,7 @@ impl<'a> BinaryReader<'a> {
                 table: self.read_resume_table()?,
             },
             0xe4 => Operator::ResumeThrow {
+                table: self.read_resume_table()?,
                 tag_index: self.read_var_u32()?,
             },
             0xe5 => Operator::Barrier {
