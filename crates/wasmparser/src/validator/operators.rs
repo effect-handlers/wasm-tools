@@ -2383,32 +2383,6 @@ impl OperatorValidator {
                 }
             }
             Operator::Resume { ref table } => {
-                //                 self.pop_operand(Some(ValType::I32), resources)?;
-                // let default = self.jump(table.default())?;
-                // let default_types = label_types(default.0, resources, default.1)?;
-                // for element in table.targets() {
-                //     let relative_depth = element.map_err(|mut e| {
-                //         e.inner.offset = usize::max_value();
-                //         OperatorValidatorError(e)
-                //     })?;
-                //     let block = self.jump(relative_depth)?;
-                //     let tys = label_types(block.0, resources, block.1)?;
-                //     if tys.len() != default_types.len() {
-                //         bail_op_err!(
-                //             "type mismatch: br_table target labels have different number of types"
-                //         );
-                //     }
-                //     debug_assert!(self.br_table_tmp.is_empty());
-                //     for ty in tys.rev() {
-                //         let ty = self.pop_operand(Some(ty), resources)?;
-                //         self.br_table_tmp.push(ty);
-                //     }
-                //     self.operands.extend(self.br_table_tmp.drain(..).rev());
-                // }
-                // for ty in default_types.rev() {
-                //     self.pop_operand(Some(ty), resources)?;
-                // }
-                // self.unreachable();
                 let rt = self.pop_ref(resources)?;
                 match rt.heap_type {
                     HeapType::Index(y) => {
