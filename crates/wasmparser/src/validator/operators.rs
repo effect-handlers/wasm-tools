@@ -677,16 +677,17 @@ impl OperatorValidator {
                 Some(ValType::Ref(RefType { nullable: _, heap_type: HeapType::Index(z) })) => {
                     let ctft2 = func_type_at(resources, cont_type_at(resources, z)?)?;
                     // Now we must check that (ts2' -> ts2) <: $ft
+                    // This method should be exposed by resources to make this correct
                     for (tagty, ct2ty) in tagtype.outputs().zip(ctft2.inputs()) {
-                        // Note: function subtyping is contravariant in input types.
+                        // Note: according to spec we should check for equality here
                         if !resources.matches(ct2ty, tagty) {
-                            panic!("type mismatch in continuation type") // TODO(dhil): tidy up
+                            bail_op_err!("type mismatch in continuation type") // TODO(dhil): tidy up
                         }
                     }
                     for (ctty, ct2ty) in ctft.outputs().zip(ctft2.outputs()) {
-                        // Note: function subtyping is covariant in output types.
+                        // Note: according to spec we should check for equality here
                         if !resources.matches(ctty, ct2ty) {
-                            panic!("type mismatch in continuation type") // TODO(dhil): tidy up
+                            bail_op_err!("type mismatch in continuation type") // TODO(dhil): tidy up
                         }
                     }
                 }
