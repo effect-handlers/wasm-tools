@@ -618,13 +618,37 @@ impl OperatorValidator {
         Ok(())
     }
 
+    /// Validates a resume table.
     fn check_resume_table<T: WasmModuleResources>(
         &mut self,
         resources: &T,
-        table: &ResumeTable,
-        ctft: &T::FuncType // ctft := ts1 -> ts2
+        table: &ResumeTable, // The table to validate.
+        ctft: &T::FuncType // The type of the continuation applied to the resume, which `table` is attached to.
     ) -> OperatorValidatorResult<()> {
-        // Validate resume table.
+        // Resume table validation is somewhat involved as we have to
+        // check that the domain of each tag matches up with the
+        // expected type at its associated label. In addition, we also
+        // need to check that the continuation type matches the
+        // expectation at each label.
+        //
+        // Concretely, let's say the given continuation type has the
+        // form
+        //     ctft := ts1 -> ts2
+        // and that each tag type has the form
+        //     tagtype := ts1' -> ts2'
+        // and each label type has the form
+        //     labeltype := ts1'' (ref null? (cont $ft))
+        // then for each tag-label pair we have to check that domain
+        // (ts1') of the tag type matches the prefix of the label
+        // type, i.e.  ts1' <: ts1''
+        //
+        // Subsequently, we must check that the codomain of each
+        // tagtype matches the domain of the dynamic continuation type
+        // at its label. Moreover, we also need to check that the
+        // codomain of continuation type matches the overall return
+        // type of the context --- this type is given by the provided
+        // continuation $ctft. In essence, we need to check that
+        //     (ts2' -> ts2) <: $ft
         for pair in table.targets() {
             let (tag, relative_depth) = pair.map_err(|mut e| {
                 e.inner.offset = usize::max_value();
@@ -633,30 +657,22 @@ impl OperatorValidator {
             // tagtype := ts1' -> ts2'
             let tagtype = tag_at(resources, tag)?;
             let block = self.jump(relative_depth)?;
-            // tys := ts1''* (ref null? (cont $ft))
-            let mut tys = label_types(block.0, resources, block.1)?;
+
+            // label_types(block.0, resources, block.1) := ts1''* (ref null? (cont $ft))
+            if tagtype.inputs().len() != label_types(block.0, resources, block.1)?.len() - 1 {
+                panic!("type mismatch between label and tag types") // TODO(dhil): tidy up
+            }
+            let labeltys = label_types(block.0, resources, block.1)?.take(tagtype.inputs().len());
 
             // Next check that ts1' <: ts1''.
-            let len = tagtype.inputs().len();
-            let mut tagins = tagtype.inputs();
-            let mut i = 0;
-            loop {
-                if i == len - 1 {
-                    break;
-                }
-                match (tagins.next(), tys.next()) {
-                    (Some(tagty), Some(lblty)) => {
-                        if !resources.matches(tagty, lblty) {
-                            panic!("type mismatch between tag type and label type") // TODO(dhil): tidy up
-                        }
-                        i += 1;
-                    }
-                    _ => unreachable!(),
+            for (tagty, lblty) in labeltys.zip(tagtype.inputs()) {
+                if !resources.matches(tagty, lblty) {
+                    panic!("type mismatch between tag type and label type") // TODO(dhil): tidy up
                 }
             }
 
-            // Retrieve the continuation reference.
-            match tys.next() {
+            // Retrieve the continuation reference type (i.e. (cont $ft)).
+            match label_types(block.0, resources, block.1)?.last() {
                 Some(ValType::Ref(RefType { nullable: _, heap_type: HeapType::Index(z) })) => {
                     let ctft2 = func_type_at(resources, cont_type_at(resources, z)?)?;
                     // Now we must check that (ts2' -> ts2) <: $ft
