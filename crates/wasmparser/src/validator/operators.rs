@@ -2443,8 +2443,12 @@ impl OperatorValidator {
                            ty_to_str(ValType::Ref(rt)))
                 }
             }
-            Operator::Barrier { ty: _ } => {
-                todo!("Implement Barrier")
+            Operator::Barrier { ty } => {
+                self.check_block_type(ty, resources)?;
+                for ty in params(ty, resources)?.rev() {
+                    self.pop_operand(Some(ty), resources)?;
+                }
+                self.push_ctrl(FrameKind::Barrier, ty, resources)?;
             }
         }
         Ok(())
