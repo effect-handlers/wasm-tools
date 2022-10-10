@@ -2324,14 +2324,12 @@ impl OperatorValidator {
                     nullable: false,
                     heap_type: HeapType::Index(fidx),
                 };
-                if !resources.matches(
-                    ValType::Ref(self.pop_ref(resources)?),
-                    ValType::Ref(self.pop_ref(resources)?),
-                ) {
-                    panic!("mismatch error") // TODO(dhil): tidy up
-                }
-
-                self.push_operand(ValType::Ref(rt), resources)?;
+                self.pop_operand(Some(ValType::Ref(rt)), resources)?;
+                let result = RefType {
+                    nullable: false,
+                    heap_type: HeapType::Index(type_index),
+                };
+                self.push_operand(ValType::Ref(result), resources)?;
             }
             Operator::ContBind { type_index } => {
                 let rt = self.pop_ref(resources)?;
