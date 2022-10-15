@@ -3483,13 +3483,20 @@ where
                 }
             }
             HeapType::Bot => {}
-            _ => bail!(offset,
+            _ => {
+                bail!(offset,
                 "type mismatch: instruction requires continuation reference type but stack has {}",
                 ty_to_str(ValType::Ref(rt)))
+            }
         }
         Ok(())
     }
-    fn visit_resume_throw(&mut self, offset: usize, resumetable: ResumeTable, tag_index: u32) -> Self::Output {
+    fn visit_resume_throw(
+        &mut self,
+        offset: usize,
+        tag_index: u32,
+        resumetable: ResumeTable,
+    ) -> Self::Output {
         let rt = self.pop_ref(offset)?;
         match rt.heap_type {
             HeapType::TypedFunc(y) => {
