@@ -3465,7 +3465,7 @@ where
                     // TODO(dhil): Tidy up
                 }
                 // Next check that prefix of ft1's domain agrees with the domain of ft2.
-                //let ft1ins1 = ft1.inputs().take(ft1.inputs().len() - ft2.inputs().len());
+                let ft1ins1 = ft1.inputs().take(ft1.inputs().len() - ft2.inputs().len());
                 let ft1ins2 = ft1.inputs().skip(ft1.inputs().len() - ft2.inputs().len());
 
                 for (ty1, ty2) in ft1ins2.zip(ft2.inputs()) {
@@ -3486,14 +3486,14 @@ where
                     }
                 }
 
-                // Check that ft1's inputs are available on the stack.
-                for ty in ft1.inputs().rev() {
+                // Check that the bound ft1 inputs are available on the stack.
+                for ty in ft1ins1.rev() {
                     self.pop_operand(offset, Some(ty))?;
                 }
 
                 // Push the continuation reference.
                 self.push_operand(ValType::Ref(RefType {
-                    nullable: rt.nullable,
+                    nullable: false,
                     heap_type: type_index
                         .try_into()
                         .expect("function reference index larger than 2^16"),
