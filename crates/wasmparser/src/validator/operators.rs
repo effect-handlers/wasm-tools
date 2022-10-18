@@ -441,7 +441,7 @@ impl<'resources, R: WasmModuleResources> OperatorValidatorTemp<'_, 'resources, R
             if self.operands.len() == control.height {
                 let desc = match expected {
                     Some(ty) => ty_to_str(ty),
-                    None => "a type",
+                    None => "a type".into(),
                 };
                 bail!(
                     offset,
@@ -1018,7 +1018,10 @@ impl<'resources, R: WasmModuleResources> OperatorValidatorTemp<'_, 'resources, R
 
             // label_types(offset, block.0, block.1) := ts1''* (ref null? (cont $ft))
             if tagtype.inputs().len() != self.label_types(offset, block.0, block.1)?.len() - 1 {
-                panic!("type mismatch between label and tag types") // TODO(dhil): tidy up
+                bail!(
+                    offset,
+                    "type mismatch between label type and tag type length"
+                ) // TODO(dhil): tidy up
             }
             let labeltys = self
                 .label_types(offset, block.0, block.1)?
@@ -1058,39 +1061,39 @@ impl<'resources, R: WasmModuleResources> OperatorValidatorTemp<'_, 'resources, R
     }
 }
 
-fn ty_to_str(ty: ValType) -> &'static str {
+fn ty_to_str(ty: ValType) -> String {
     match ty {
-        ValType::I32 => "i32",
-        ValType::I64 => "i64",
-        ValType::F32 => "f32",
-        ValType::F64 => "f64",
-        ValType::V128 => "v128",
-        ValType::Ref(FUNC_REF) => "funcref",
-        ValType::Ref(EXTERN_REF) => "externref",
+        ValType::I32 => "i32".into(),
+        ValType::I64 => "i64".into(),
+        ValType::F32 => "f32".into(),
+        ValType::F64 => "f64".into(),
+        ValType::V128 => "v128".into(),
+        ValType::Ref(FUNC_REF) => "funcref".into(),
+        ValType::Ref(EXTERN_REF) => "externref".into(),
         ValType::Ref(RefType {
             nullable: false,
             heap_type: HeapType::Func,
-        }) => "(ref func)",
+        }) => "(ref func)".into(),
         ValType::Ref(RefType {
             nullable: false,
             heap_type: HeapType::Extern,
-        }) => "(ref extern)",
+        }) => "(ref extern)".into(),
         ValType::Ref(RefType {
             nullable: false,
-            heap_type: HeapType::TypedFunc(_),
-        }) => "(ref $type)",
+            heap_type: HeapType::TypedFunc(i),
+        }) => format!("(ref {})", i),
         ValType::Ref(RefType {
             nullable: true,
-            heap_type: HeapType::TypedFunc(_),
-        }) => "(ref null $type)",
+            heap_type: HeapType::TypedFunc(i),
+        }) => format!("(ref null {})", i),
         ValType::Ref(RefType {
             nullable: true,
             heap_type: HeapType::Bot,
-        }) => "(ref null bot)",
+        }) => "(ref null bot)".into(),
         ValType::Ref(RefType {
             nullable: false,
             heap_type: HeapType::Bot,
-        }) => "(ref bot)",
+        }) => "(ref bot)".into(),
     }
 }
 

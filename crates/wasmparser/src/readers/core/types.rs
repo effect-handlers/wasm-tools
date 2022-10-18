@@ -14,7 +14,7 @@
  */
 
 use crate::{BinaryReader, Result, SectionIteratorLimited, SectionReader, SectionWithLimitedItems};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::ops::Range;
 
 /// Represents the types of values in a WebAssembly module.
@@ -66,6 +66,12 @@ impl TryFrom<u32> for HeapType {
     type Error = <u16 as TryFrom<u32>>::Error;
     fn try_from(x: u32) -> Result<HeapType, Self::Error> {
         Ok(HeapType::TypedFunc(PackedIndex(x.try_into()?)))
+    }
+}
+impl Display for PackedIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let i = self.0;
+        write!(f, "{}", i)
     }
 }
 
