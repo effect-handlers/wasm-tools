@@ -8,7 +8,7 @@
     unreachable
     i32.const 0
     ref.func $f
-    return_call_ref $t
+    return_call_ref 0
     i32.const 0
   )
   (export "unreachable" (func 1))

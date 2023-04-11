@@ -2,12 +2,12 @@
   (type $ii (;0;) (func (param i32) (result i32)))
   (type $ll (;1;) (func (param i64) (result i64)))
   (type $lll (;2;) (func (param i64 i64) (result i64)))
-  (type (;3;) (func (param (ref $ii) i32) (result i32)))
+  (type (;3;) (func (param (ref 0) i32) (result i32)))
   (type (;4;) (func (result i32)))
-  (func $apply (;0;) (type 3) (param $f (ref $ii)) (param $x i32) (result i32)
+  (func $apply (;0;) (type 3) (param $f (ref 0)) (param $x i32) (result i32)
     local.get $x
     local.get $f
-    call_ref $ii
+    call_ref 0
   )
   (func $f (;1;) (type $ii) (param i32) (result i32)
     local.get 0
@@ -20,21 +20,21 @@
     i32.sub
   )
   (func (;3;) (type $ii) (param $x i32) (result i32)
-    (local $rf (ref null $ii)) (local $rg (ref null $ii))
+    (local $rf (ref null 0)) (local $rg (ref null 0))
     ref.func $f
     local.set $rf
     ref.func $g
     local.set $rg
     local.get $x
     local.get $rf
-    call_ref $ii
+    call_ref 0
     local.get $rg
-    call_ref $ii
+    call_ref 0
   )
   (func (;4;) (type 4) (result i32)
     i32.const 1
-    ref.null $ii
-    call_ref $ii
+    ref.null 0
+    call_ref 0
   )
   (func $fac (;5;) (type $ll) (param i64) (result i64)
     local.get 0
@@ -47,7 +47,7 @@
       i64.const 1
       i64.sub
       global.get $fac
-      call_ref $ll
+      call_ref 1
       i64.mul
     end
   )
@@ -64,7 +64,7 @@
       local.get 1
       i64.mul
       global.get $fac-acc
-      call_ref $lll
+      call_ref 2
     end
   )
   (func $fib (;7;) (type $ll) (param i64) (result i64)
@@ -78,12 +78,12 @@
       i64.const 2
       i64.sub
       global.get $fib
-      call_ref $ll
+      call_ref 1
       local.get 0
       i64.const 1
       i64.sub
       global.get $fib
-      call_ref $ll
+      call_ref 1
       i64.add
     end
   )
@@ -97,7 +97,7 @@
       i64.const 1
       i64.sub
       global.get $odd
-      call_ref $ll
+      call_ref 1
     end
   )
   (func $odd (;9;) (type $ll) (param i64) (result i64)
@@ -110,14 +110,14 @@
       i64.const 1
       i64.sub
       global.get $even
-      call_ref $ll
+      call_ref 1
     end
   )
-  (global $fac (;0;) (ref $ll) ref.func $fac)
-  (global $fac-acc (;1;) (ref $lll) ref.func $fac-acc)
-  (global $fib (;2;) (ref $ll) ref.func $fib)
-  (global $even (;3;) (ref $ll) ref.func $even)
-  (global $odd (;4;) (ref $ll) ref.func $odd)
+  (global $fac (;0;) (ref 1) ref.func $fac)
+  (global $fac-acc (;1;) (ref 2) ref.func $fac-acc)
+  (global $fib (;2;) (ref 1) ref.func $fib)
+  (global $even (;3;) (ref 1) ref.func $even)
+  (global $odd (;4;) (ref 1) ref.func $odd)
   (export "run" (func 3))
   (export "null" (func 4))
   (export "fac" (func $fac))

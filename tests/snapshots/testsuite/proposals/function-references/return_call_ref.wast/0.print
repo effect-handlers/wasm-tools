@@ -51,67 +51,67 @@
   )
   (func (;12;) (type $-i32) (result i32)
     global.get $const-i32
-    return_call_ref $-i32
+    return_call_ref 1
   )
   (func (;13;) (type $-i64) (result i64)
     global.get $const-i64
-    return_call_ref $-i64
+    return_call_ref 2
   )
   (func (;14;) (type $-f32) (result f32)
     global.get $const-f32
-    return_call_ref $-f32
+    return_call_ref 3
   )
   (func (;15;) (type $-f64) (result f64)
     global.get $const-f64
-    return_call_ref $-f64
+    return_call_ref 4
   )
   (func (;16;) (type $-i32) (result i32)
     i32.const 32
     global.get $id-i32
-    return_call_ref $i32-i32
+    return_call_ref 5
   )
   (func (;17;) (type $-i64) (result i64)
     i64.const 64
     global.get $id-i64
-    return_call_ref $i64-i64
+    return_call_ref 6
   )
   (func (;18;) (type $-f32) (result f32)
     f32.const 0x1.51eb86p+0 (;=1.32;)
     global.get $id-f32
-    return_call_ref $f32-f32
+    return_call_ref 7
   )
   (func (;19;) (type $-f64) (result f64)
     f64.const 0x1.a3d70a3d70a3dp+0 (;=1.64;)
     global.get $id-f64
-    return_call_ref $f64-f64
+    return_call_ref 8
   )
   (func (;20;) (type $-i32) (result i32)
     f32.const 0x1.00ccccp+5 (;=32.1;)
     i32.const 32
     global.get $f32-i32
-    return_call_ref $f32-i32
+    return_call_ref 9
   )
   (func (;21;) (type $-i64) (result i64)
     i32.const 32
     i64.const 64
     global.get $i32-i64
-    return_call_ref $i32-i64
+    return_call_ref 10
   )
   (func (;22;) (type $-f32) (result f32)
     f64.const 0x1p+6 (;=64;)
     f32.const 0x1p+5 (;=32;)
     global.get $f64-f32
-    return_call_ref $f64-f32
+    return_call_ref 11
   )
   (func (;23;) (type $-f64) (result f64)
     i64.const 64
     f64.const 0x1.0066666666666p+6 (;=64.1;)
     global.get $i64-f64
-    return_call_ref $i64-f64
+    return_call_ref 12
   )
   (func (;24;) (type $proc)
-    ref.null $proc
-    return_call_ref $proc
+    ref.null 0
+    return_call_ref 0
   )
   (func $fac-acc (;25;) (type $i64i64-i64) (param i64 i64) (result i64)
     local.get 0
@@ -126,7 +126,7 @@
       local.get 1
       i64.mul
       global.get $fac-acc
-      return_call_ref $i64i64-i64
+      return_call_ref 13
     end
   )
   (func $count (;26;) (type $i64-i64) (param i64) (result i64)
@@ -139,7 +139,7 @@
       i64.const 1
       i64.sub
       global.get $count
-      return_call_ref $i64-i64
+      return_call_ref 6
     end
   )
   (func $even (;27;) (type $i64-i64) (param i64) (result i64)
@@ -152,7 +152,7 @@
       i64.const 1
       i64.sub
       global.get $odd
-      return_call_ref $i64-i64
+      return_call_ref 6
     end
   )
   (func $odd (;28;) (type $i64-i64) (param i64) (result i64)
@@ -165,25 +165,25 @@
       i64.const 1
       i64.sub
       global.get $even
-      return_call_ref $i64-i64
+      return_call_ref 6
     end
   )
-  (global $const-i32 (;0;) (ref $-i32) ref.func $const-i32)
-  (global $const-i64 (;1;) (ref $-i64) ref.func $const-i64)
-  (global $const-f32 (;2;) (ref $-f32) ref.func $const-f32)
-  (global $const-f64 (;3;) (ref $-f64) ref.func $const-f64)
-  (global $id-i32 (;4;) (ref $i32-i32) ref.func $id-i32)
-  (global $id-i64 (;5;) (ref $i64-i64) ref.func $id-i64)
-  (global $id-f32 (;6;) (ref $f32-f32) ref.func $id-f32)
-  (global $id-f64 (;7;) (ref $f64-f64) ref.func $id-f64)
-  (global $f32-i32 (;8;) (ref $f32-i32) ref.func $f32-i32)
-  (global $i32-i64 (;9;) (ref $i32-i64) ref.func $i32-i64)
-  (global $f64-f32 (;10;) (ref $f64-f32) ref.func $f64-f32)
-  (global $i64-f64 (;11;) (ref $i64-f64) ref.func $i64-f64)
-  (global $fac-acc (;12;) (ref $i64i64-i64) ref.func $fac-acc)
-  (global $count (;13;) (ref $i64-i64) ref.func $count)
-  (global $even (;14;) (ref $i64-i64) ref.func $even)
-  (global $odd (;15;) (ref $i64-i64) ref.func $odd)
+  (global $const-i32 (;0;) (ref 1) ref.func $const-i32)
+  (global $const-i64 (;1;) (ref 2) ref.func $const-i64)
+  (global $const-f32 (;2;) (ref 3) ref.func $const-f32)
+  (global $const-f64 (;3;) (ref 4) ref.func $const-f64)
+  (global $id-i32 (;4;) (ref 5) ref.func $id-i32)
+  (global $id-i64 (;5;) (ref 6) ref.func $id-i64)
+  (global $id-f32 (;6;) (ref 7) ref.func $id-f32)
+  (global $id-f64 (;7;) (ref 8) ref.func $id-f64)
+  (global $f32-i32 (;8;) (ref 9) ref.func $f32-i32)
+  (global $i32-i64 (;9;) (ref 10) ref.func $i32-i64)
+  (global $f64-f32 (;10;) (ref 11) ref.func $f64-f32)
+  (global $i64-f64 (;11;) (ref 12) ref.func $i64-f64)
+  (global $fac-acc (;12;) (ref 13) ref.func $fac-acc)
+  (global $count (;13;) (ref 6) ref.func $count)
+  (global $even (;14;) (ref 6) ref.func $even)
+  (global $odd (;15;) (ref 6) ref.func $odd)
   (export "type-i32" (func 12))
   (export "type-i64" (func 13))
   (export "type-f32" (func 14))

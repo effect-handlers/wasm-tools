@@ -702,7 +702,7 @@ impl Printer {
         for (i, param) in ty.params().iter().enumerate() {
             let name = names_for.and_then(|n| state.core.local_names.get(&(n, i as u32)));
             params.start_local(name, &mut self.result);
-            self.print_valtype(state, *param)?;
+            self.print_valtype(*param)?;
             params.end_local(&mut self.result);
         }
         params.finish(&mut self.result);
@@ -710,7 +710,7 @@ impl Printer {
             self.result.push_str(" (result");
             for result in ty.results().iter() {
                 self.result.push(' ');
-                self.print_valtype(state, *result)?;
+                self.print_valtype(*result)?;
             }
             self.result.push(')');
         }
@@ -726,19 +726,19 @@ impl Printer {
         self.print_idx(&state.core.type_names, type_index)
     }
 
-    fn print_valtype(&mut self, state: &State, ty: ValType) -> Result<()> {
+    fn print_valtype(&mut self, ty: ValType) -> Result<()> {
         match ty {
             ValType::I32 => self.result.push_str("i32"),
             ValType::I64 => self.result.push_str("i64"),
             ValType::F32 => self.result.push_str("f32"),
             ValType::F64 => self.result.push_str("f64"),
             ValType::V128 => self.result.push_str("v128"),
-            ValType::Ref(rt) => self.print_reftype(state, rt)?,
+            ValType::Ref(rt) => self.print_reftype(rt)?,
         }
         Ok(())
     }
 
-    fn print_reftype(&mut self, state: &State, ty: RefType) -> Result<()> {
+    fn print_reftype(&mut self, ty: RefType) -> Result<()> {
         if ty == RefType::FUNCREF {
             self.result.push_str("funcref");
         } else if ty == RefType::EXTERNREF {
@@ -748,17 +748,17 @@ impl Printer {
             if ty.nullable {
                 self.result.push_str("null ");
             }
-            self.print_heaptype(state, ty.heap_type)?;
+            self.print_heaptype(ty.heap_type)?;
             self.result.push_str(")");
         }
         Ok(())
     }
 
-    fn print_heaptype(&mut self, state: &State, ty: HeapType) -> Result<()> {
+    fn print_heaptype(&mut self, ty: HeapType) -> Result<()> {
         match ty {
             HeapType::Func => self.result.push_str("func"),
             HeapType::Extern => self.result.push_str("extern"),
-            HeapType::TypedFunc(i) => self.print_idx(&state.core.type_names, i.into())?,
+            HeapType::TypedFunc(i) => self.result.push_str(&format!("{}", u32::from(i))),
         }
         Ok(())
     }
@@ -817,7 +817,7 @@ impl Printer {
         }
         self.print_limits(ty.initial, ty.maximum)?;
         self.result.push(' ');
-        self.print_reftype(state, ty.element_type)?;
+        self.print_reftype(ty.element_type)?;
         Ok(())
     }
 
@@ -865,10 +865,10 @@ impl Printer {
         }
         if ty.mutable {
             self.result.push_str("(mut ");
-            self.print_valtype(state, ty.content_type)?;
+            self.print_valtype(ty.content_type)?;
             self.result.push(')');
         } else {
-            self.print_valtype(state, ty.content_type)?;
+            self.print_valtype(ty.content_type)?;
         }
         Ok(())
     }
@@ -969,7 +969,7 @@ impl Printer {
                     }
                     let name = state.core.local_names.get(&(func_idx, params + local_idx));
                     locals.start_local(name, &mut self.result);
-                    self.print_valtype(state, ty)?;
+                    self.print_valtype(ty)?;
                     locals.end_local(&mut self.result);
                     local_idx += 1;
                 }
@@ -1204,7 +1204,7 @@ impl Printer {
                     }
                 }
                 ElementItems::Expressions(reader) => {
-                    self.print_reftype(state, elem.ty)?;
+                    self.print_reftype(elem.ty)?;
                     for expr in reader {
                         self.result.push(' ');
                         self.print_const_expr_sugar(state, &expr?, "item")?

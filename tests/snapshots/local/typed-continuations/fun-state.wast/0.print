@@ -4,12 +4,12 @@
   (type $gk (;2;) (cont $gf))
   (type $sk (;3;) (cont $sf))
   (type (;4;) (func (param i32)))
-  (type (;5;) (func (param (ref $gk) i32) (result i32)))
-  (type (;6;) (func (result i32 (ref $sk))))
-  (type (;7;) (func (param i32 (ref $sk)) (result i32)))
-  (func $getting (;0;) (type 5) (param $k (ref $gk)) (param $s i32) (result i32)
-    block $on_get (result (ref $gk)) ;; label = @1
-      block $on_set (type 6) (result i32 (ref $sk)) ;; label = @2
+  (type (;5;) (func (param (ref 2) i32) (result i32)))
+  (type (;6;) (func (result i32 (ref 3))))
+  (type (;7;) (func (param i32 (ref 3)) (result i32)))
+  (func $getting (;0;) (type 5) (param $k (ref 2)) (param $s i32) (result i32)
+    block $on_get (result (ref 2)) ;; label = @1
+      block $on_set (type 6) (result i32 (ref 3)) ;; label = @2
         local.get $s
         local.get $k
         resume $gk (tag 0 1 (;@1;))(tag 1 0 (;@2;))
@@ -20,9 +20,9 @@
     local.get $s
     return_call $getting
   )
-  (func $setting (;1;) (type 7) (param $s i32) (param $k (ref $sk)) (result i32)
-    block $on_get (result (ref $gk)) ;; label = @1
-      block $on_set (type 6) (result i32 (ref $sk)) ;; label = @2
+  (func $setting (;1;) (type 7) (param $s i32) (param $k (ref 3)) (result i32)
+    block $on_get (result (ref 2)) ;; label = @1
+      block $on_set (type 6) (result i32 (ref 3)) ;; label = @2
         local.get $k
         resume $sk (tag 0 1 (;@1;))(tag 1 0 (;@2;))
         return

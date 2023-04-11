@@ -40,7 +40,7 @@ impl<'a, 'b> PrintOperator<'a, 'b> {
             BlockType::Empty => {}
             BlockType::Type(t) => {
                 self.push_str("(result ");
-                self.printer.print_valtype(self.state, t)?;
+                self.printer.print_valtype(t)?;
                 self.push_str(") ");
             }
             BlockType::FuncType(idx) => {
@@ -184,7 +184,7 @@ impl<'a, 'b> PrintOperator<'a, 'b> {
     }
 
     fn hty(&mut self, hty: HeapType) -> Result<()> {
-        self.printer.print_heaptype(self.state, hty)
+        self.printer.print_heaptype(hty)
     }
 }
 
@@ -248,12 +248,12 @@ macro_rules! define_visit {
     );
     (payload $self:ident TypedSelect $ty:ident) => (
         $self.push_str(" (result ");
-        $self.printer.print_valtype($self.state, $ty)?;
+        $self.printer.print_valtype($ty)?;
         $self.push_str(")")
     );
     (payload $self:ident RefNull $hty:ident) => (
         $self.push_str(" ");
-        $self.hty($hty)?;
+        $self.printer.print_heaptype($hty)?;
     );
     (payload $self:ident TableInit $segment:ident $table:ident) => (
         $self.push_str(" ");
@@ -332,9 +332,9 @@ macro_rules! define_visit {
         $self.push_str(" ");
         $self.cont_index($hty)?;
     );
-    (payload $self:ident Resume $index:ident $table:ident) => (
+    (payload $self:ident Resume $type_index:ident $table:ident) => (
         $self.push_str(" ");
-        $self.cont_index($index)?;
+        $self.cont_index($type_index)?;
         if $table.len() > 0 {
             $self.push_str(" ");
         }
