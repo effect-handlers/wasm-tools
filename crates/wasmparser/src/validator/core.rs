@@ -151,7 +151,7 @@ impl ModuleState {
 
         match &table.init {
             TableInit::RefNull => {
-                if !table.ty.element_type.nullable {
+                if !table.ty.element_type.is_nullable() {
                     bail!(offset, "type mismatch: non-defaultable element type");
                 }
             }
@@ -207,7 +207,7 @@ impl ModuleState {
                 table_index,
                 offset_expr,
             } => {
-                let table = self.module.table_at(table_index, offset)?;
+                let table = self.module.table_at(table_index.unwrap_or(0), offset)?;
                 if !self
                     .module
                     .matches(ValType::Ref(e.ty), ValType::Ref(table.element_type), types)
@@ -247,7 +247,7 @@ impl ModuleState {
         match e.items {
             crate::ElementItems::Functions(reader) => {
                 let count = reader.count();
-                if !e.ty.nullable && count <= 0 {
+                if !e.ty.is_nullable() && count <= 0 {
                     return Err(BinaryReaderError::new(
                         "a non-nullable element must come with an initialization expression",
                         offset,
@@ -528,7 +528,7 @@ impl Module {
             check_max(self.types.len(), 1, MAX_WASM_TYPES, "types", offset)?;
         }
 
-        let id = types.push_defined(ty);
+        let id = types.push_ty(ty);
         self.types.push(id);
         Ok(())
     }
@@ -813,7 +813,7 @@ impl Module {
 
     fn check_ref_type(&self, ty: RefType, _types: &TypeList, offset: usize) -> Result<()> {
         // Check that the heap type is valid
-        match ty.heap_type {
+        match ty.heap_type() {
             HeapType::Func | HeapType::Extern => (),
             HeapType::TypedFunc(type_index) => {
                 // Just check that the index is valid
@@ -839,8 +839,8 @@ impl Module {
     fn eq_valtypes(&self, ty1: ValType, ty2: ValType, types: &TypeList) -> bool {
         match (ty1, ty2) {
             (ValType::Ref(rt1), ValType::Ref(rt2)) => {
-                rt1.nullable == rt2.nullable
-                    && match (rt1.heap_type, rt2.heap_type) {
+                rt1.is_nullable() == rt2.is_nullable()
+                    && match (rt1.heap_type(), rt2.heap_type()) {
                         (HeapType::Func, HeapType::Func) => true,
                         (HeapType::Extern, HeapType::Extern) => true,
                         (HeapType::TypedFunc(n1), HeapType::TypedFunc(n2)) => n1 == n2 || self.eq_defs(n1.into(), n2.into(), types, 0),
@@ -884,8 +884,8 @@ impl Module {
         };
 
         let matches_ref = |ty1: RefType, ty2: RefType, types: &TypeList| -> bool {
-            matches_heap(ty1.heap_type, ty2.heap_type, types)
-                && matches_null(ty1.nullable, ty2.nullable)
+            matches_heap(ty1.heap_type(), ty2.heap_type(), types)
+                && matches_null(ty1.is_nullable(), ty2.is_nullable())
         };
 
         match (ty1, ty2) {

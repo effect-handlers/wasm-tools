@@ -580,6 +580,9 @@ impl From<core::HeapType<'_>> for wasm_encoder::HeapType {
             | core::HeapType::Eq
             | core::HeapType::Struct
             | core::HeapType::Array
+            | core::HeapType::NoFunc
+            | core::HeapType::NoExtern
+            | core::HeapType::None
             | core::HeapType::I31 => {
                 todo!("encoding of GC proposal types not yet implemented")
             }
