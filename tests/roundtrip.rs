@@ -39,7 +39,7 @@ fn main() {
     let filter = std::env::args().nth(1);
     let bless = std::env::var_os("BLESS").is_some();
     if bless {
-        std::fs::remove_dir_all("tests/snapshots").expect("clear the snapshots directory");
+        drop(std::fs::remove_dir_all("tests/snapshots"));
     }
 
     let tests = tests
@@ -66,7 +66,14 @@ fn main() {
     let state = TestState::default();
     let errors = tests
         .par_iter()
-        .filter_map(|(test, contents)| state.run_test(test, contents).err())
+        .filter_map(|(test, contents)| {
+            let start = std::time::Instant::now();
+            let result = state.run_test(test, contents).err();
+            if start.elapsed().as_secs() > 2 {
+                println!("{test:?} SLOW");
+            }
+            result
+        })
         .collect::<Vec<_>>();
 
     if !errors.is_empty() {
@@ -144,6 +151,11 @@ fn skip_test(test: &Path, contents: &[u8]) -> bool {
 
     // TODO: the gc proposal isn't implemented yet
     if test.iter().any(|p| p == "gc") {
+        // selectively enable some tests
+        let implemented = &["gc-i31.wat", "gc-heaptypes.wat"];
+        if implemented.iter().any(|x| test.ends_with(x)) {
+            return false;
+        }
         return true;
     }
 
@@ -566,6 +578,7 @@ impl TestState {
             function_references: true,
             typed_continuations: true,
             memory_control: true,
+            gc: true,
         };
         for part in test.iter().filter_map(|t| t.to_str()) {
             match part {
@@ -580,6 +593,7 @@ impl TestState {
                     features.mutable_global = false;
                     features.bulk_memory = false;
                     features.function_references = false;
+                    features.gc = false;
                 }
                 "floats-disabled.wast" => features.floats = false,
                 "threads" => {
@@ -600,6 +614,7 @@ impl TestState {
                 "function-references" => features.function_references = true,
                 "relaxed-simd" => features.relaxed_simd = true,
                 "reference-types" => features.reference_types = true,
+                "gc" => features.gc = true,
                 _ => {}
             }
         }

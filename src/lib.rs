@@ -4,16 +4,20 @@ use anyhow::{bail, Context, Result};
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use termcolor::{Ansi, ColorChoice, NoColor, StandardStream, WriteColor};
 
-// Implements the verbosity flag for the CLI commands.
 #[derive(clap::Parser)]
-pub struct Verbosity {
+pub struct GeneralOpts {
     /// Use verbose output (-vv very verbose output).
     #[clap(long = "verbose", short = 'v', action = clap::ArgAction::Count)]
     verbose: u8,
+
+    /// Use colors in output.
+    #[clap(long = "color", default_value = "auto")]
+    pub color: ColorChoice,
 }
 
-impl Verbosity {
+impl GeneralOpts {
     /// Initializes the logger based on the verbosity level.
     pub fn init_logger(&self) {
         let default = match self.verbose {
@@ -47,7 +51,7 @@ pub struct InputOutput {
     output: OutputArg,
 
     #[clap(flatten)]
-    verbosity: Verbosity,
+    general: GeneralOpts,
 }
 
 #[derive(clap::Parser)]
@@ -66,8 +70,6 @@ pub enum Output<'a> {
 
 impl InputOutput {
     pub fn parse_input_wasm(&self) -> Result<Vec<u8>> {
-        self.verbosity.init_logger();
-
         if let Some(path) = &self.input {
             if path != Path::new("-") {
                 let bytes = wat::parse_file(path)?;
@@ -89,8 +91,8 @@ impl InputOutput {
         self.output.output(bytes)
     }
 
-    pub fn output_writer(&self) -> Result<Box<dyn Write>> {
-        self.output.output_writer()
+    pub fn output_writer(&self) -> Result<Box<dyn WriteColor>> {
+        self.output.output_writer(self.general.color)
     }
 
     pub fn output_path(&self) -> Option<&Path> {
@@ -101,8 +103,8 @@ impl InputOutput {
         self.input.as_deref()
     }
 
-    pub fn init_logger(&self) {
-        self.verbosity.init_logger();
+    pub fn general_opts(&self) -> &GeneralOpts {
+        &self.general
     }
 }
 
@@ -150,10 +152,23 @@ impl OutputArg {
         self.output.as_deref()
     }
 
-    pub fn output_writer(&self) -> Result<Box<dyn Write>> {
+    pub fn output_writer(&self, color: ColorChoice) -> Result<Box<dyn WriteColor>> {
         match &self.output {
-            Some(output) => Ok(Box::new(BufWriter::new(File::create(&output)?))),
-            None => Ok(Box::new(std::io::stdout())),
+            Some(output) => {
+                let writer = BufWriter::new(File::create(&output)?);
+                if color == ColorChoice::AlwaysAnsi {
+                    Ok(Box::new(Ansi::new(writer)))
+                } else {
+                    Ok(Box::new(NoColor::new(writer)))
+                }
+            }
+            None => {
+                if color == ColorChoice::Auto && !atty::is(atty::Stream::Stdout) {
+                    Ok(Box::new(StandardStream::stdout(ColorChoice::Never)))
+                } else {
+                    Ok(Box::new(StandardStream::stdout(color)))
+                }
+            }
         }
     }
 }

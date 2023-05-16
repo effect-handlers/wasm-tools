@@ -15,7 +15,7 @@
 
 use crate::limits::{MAX_WASM_FUNCTION_PARAMS, MAX_WASM_FUNCTION_RETURNS};
 use crate::{BinaryReader, FromReader, Result, SectionLimited};
-use std::fmt::Debug;
+use std::fmt::{self, Debug, Write};
 
 /// Represents the types of values in a WebAssembly module.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -71,7 +71,8 @@ impl ValType {
 
     pub(crate) fn is_valtype_byte(byte: u8) -> bool {
         match byte {
-            0x7F | 0x7E | 0x7D | 0x7C | 0x7B | 0x70 | 0x6F | 0x6B | 0x6C => true,
+            0x7F | 0x7E | 0x7D | 0x7C | 0x7B | 0x70 | 0x6F | 0x6B | 0x6C | 0x6E | 0x65 | 0x69
+            | 0x68 | 0x6D | 0x67 | 0x66 | 0x6A => true,
             _ => false,
         }
     }
@@ -100,9 +101,25 @@ impl<'a> FromReader<'a> for ValType {
                 reader.position += 1;
                 Ok(ValType::V128)
             }
-            0x70 | 0x6F | 0x6B | 0x6C => Ok(ValType::Ref(reader.read()?)),
+            0x70 | 0x6F | 0x6B | 0x6C | 0x6E | 0x65 | 0x69 | 0x68 | 0x6D | 0x67 | 0x66 | 0x6A => {
+                Ok(ValType::Ref(reader.read()?))
+            }
             _ => bail!(reader.original_position(), "invalid value type"),
         }
+    }
+}
+
+impl fmt::Display for ValType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            ValType::I32 => "i32",
+            ValType::I64 => "i64",
+            ValType::F32 => "f32",
+            ValType::F64 => "f64",
+            ValType::V128 => "v128",
+            ValType::Ref(r) => return fmt::Display::fmt(r, f),
+        };
+        f.write_str(s)
     }
 }
 
@@ -110,25 +127,67 @@ impl<'a> FromReader<'a> for ValType {
 ///
 /// The reference types proposal first introduced `externref` and `funcref`.
 ///
-/// The function refererences proposal introduced typed function references.
+/// The function references proposal introduced typed function references.
+///
+/// The GC proposal introduces heap types: any, eq, i31, struct, array, nofunc, noextern, none.
 //
-// This is a bitpacked enum that fits in a "u24" aka `[u8; 3]`. It has a two bit
-// discriminant distinguishing the following variants:
+// RefType is a bit-packed enum that fits in a `u24` aka `[u8; 3]`.
+// Note that its content is opaque (and subject to change), but its API is stable.
+// It has the following internal structure:
+// ```
+// [nullable:u1] [indexed==1:u1] [kind:u2] [index:u20]
+// [nullable:u1] [indexed==0:u1] [type:u4] [(unused):u18]
+// ```
+// , where
+// - `nullable` determines nullability of the ref
+// - `indexed` determines if the ref is of a dynamically defined type with an index (encoded in a following bit-packing section) or of a known fixed type
+// - `kind` determines what kind of indexed type the index is pointing to:
+//   ```
+//   10 = struct
+//   11 = array
+//   01 = function
+//   ```
+// - `index` is the type index
+// - `type` is an enumeration of known types:
+//   ```
+//   1111 = any
 //
-// `(ref null? <type_index>)`: [ 00:i2 nullable:i1 type_index:i21 ]
-//         `(ref null? func)`: [ 01:i2 nullable:i1                ]
-//       `(ref null? extern)`: [ 10:i2 nullable:i1                ]
-//                     unused: [ 11:i2                            ]
+//   1101 = eq
+//   1000 = i31
+//   1001 = struct
+//   1100 = array
 //
-// Note that we only technically need 20 bits for the type index to fit every
-// type index less than or equal to `crate::limits::MAX_WASM_TYPES`. So if we
-// ever need them, we have 2 bits available in that first variant.
+//   0101 = func
+//   0100 = nofunc
+//
+//   0011 = extern
+//   0010 = noextern
+//
+//   0000 = none
+//   ```
+// - `(unused)` is unused sequence of bits
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct RefType([u8; 3]);
 
 impl std::fmt::Debug for RefType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (self.is_nullable(), self.heap_type()) {
+            (true, HeapType::Any) => write!(f, "anyref"),
+            (false, HeapType::Any) => write!(f, "(ref any)"),
+            (true, HeapType::None) => write!(f, "nullref"),
+            (false, HeapType::None) => write!(f, "(ref none)"),
+            (true, HeapType::NoExtern) => write!(f, "nullexternref"),
+            (false, HeapType::NoExtern) => write!(f, "(ref noextern)"),
+            (true, HeapType::NoFunc) => write!(f, "nullfuncref"),
+            (false, HeapType::NoFunc) => write!(f, "(ref nofunc)"),
+            (true, HeapType::Eq) => write!(f, "eqref"),
+            (false, HeapType::Eq) => write!(f, "(ref eq)"),
+            (true, HeapType::Struct) => write!(f, "structref"),
+            (false, HeapType::Struct) => write!(f, "(ref struct)"),
+            (true, HeapType::Array) => write!(f, "arrayref"),
+            (false, HeapType::Array) => write!(f, "(ref array)"),
+            (true, HeapType::I31) => write!(f, "i31ref"),
+            (false, HeapType::I31) => write!(f, "(ref i31)"),
             (true, HeapType::Extern) => write!(f, "externref"),
             (false, HeapType::Extern) => write!(f, "(ref extern)"),
             (true, HeapType::Func) => write!(f, "funcref"),
@@ -156,29 +215,72 @@ const _: () = {
     }
 
     assert!(can_roundtrip_index(crate::limits::MAX_WASM_TYPES as u32));
-    assert!(can_roundtrip_index(0b00000000_00011111_00000000_00000000));
+    assert!(can_roundtrip_index(0b00000000_00001111_00000000_00000000));
     assert!(can_roundtrip_index(0b00000000_00000000_11111111_00000000));
     assert!(can_roundtrip_index(0b00000000_00000000_00000000_11111111));
     assert!(can_roundtrip_index(0));
 };
 
 impl RefType {
-    const DISCRIMINANT_MASK: u32 = 0b11 << 22;
+    const NULLABLE_BIT: u32 = 1 << 23; // bit #23
+    const INDEXED_BIT: u32 = 1 << 22; // bit #22
 
-    const TYPED_FUNC_DISCRIMINANT: u32 = 0b00 << 22;
-    const ANY_FUNC_DISCRIMINANT: u32 = 0b01 << 22;
-    const EXTERN_DISCRIMINANT: u32 = 0b10 << 22;
+    const TYPE_MASK: u32 = 0b1111 << 18; // 4 bits #21-#18 (if `indexed == 0`)
+    const ANY_TYPE: u32 = 0b1111 << 18;
+    const EQ_TYPE: u32 = 0b1101 << 18;
+    const I31_TYPE: u32 = 0b1000 << 18;
+    const STRUCT_TYPE: u32 = 0b1001 << 18;
+    const ARRAY_TYPE: u32 = 0b1100 << 18;
+    const FUNC_TYPE: u32 = 0b0101 << 18;
+    const NOFUNC_TYPE: u32 = 0b0100 << 18;
+    const EXTERN_TYPE: u32 = 0b0011 << 18;
+    const NOEXTERN_TYPE: u32 = 0b0010 << 18;
+    const NONE_TYPE: u32 = 0b0000 << 18;
 
-    const NULLABLE_MASK: u32 = 1 << 21;
-    const INDEX_MASK: u32 = (1 << 21) - 1;
+    const KIND_MASK: u32 = 0b11 << 20; // 2 bits #21-#20 (if `indexed == 1`)
+    const STRUCT_KIND: u32 = 0b10 << 20;
+    const ARRAY_KIND: u32 = 0b11 << 20;
+    const FUNC_KIND: u32 = 0b01 << 20;
 
-    /// An nullable untyped function reference aka `(ref null func)` aka
+    const INDEX_MASK: u32 = (1 << 20) - 1; // 20 bits #19-#0 (if `indexed == 1`)
+
+    /// A nullable untyped function reference aka `(ref null func)` aka
     /// `funcref` aka `anyfunc`.
-    pub const FUNCREF: Self = RefType::from_u32(Self::ANY_FUNC_DISCRIMINANT | Self::NULLABLE_MASK);
+    pub const FUNCREF: Self = RefType::FUNC.nullable();
 
     /// A nullable reference to an extern object aka `(ref null extern)` aka
     /// `externref`.
-    pub const EXTERNREF: Self = RefType::from_u32(Self::EXTERN_DISCRIMINANT | Self::NULLABLE_MASK);
+    pub const EXTERNREF: Self = RefType::EXTERN.nullable();
+
+    /// A non-nullable untyped function reference aka `(ref func)`.
+    pub const FUNC: Self = RefType::from_u32(Self::FUNC_TYPE);
+
+    /// A non-nullable reference to an extern object aka `(ref extern)`.
+    pub const EXTERN: Self = RefType::from_u32(Self::EXTERN_TYPE);
+
+    /// A non-nullable reference to any object aka `(ref any)`.
+    pub const ANY: Self = RefType::from_u32(Self::ANY_TYPE);
+
+    /// A non-nullable reference to no object aka `(ref none)`.
+    pub const NONE: Self = RefType::from_u32(Self::NONE_TYPE);
+
+    /// A non-nullable reference to a noextern object aka `(ref noextern)`.
+    pub const NOEXTERN: Self = RefType::from_u32(Self::NOEXTERN_TYPE);
+
+    /// A non-nullable reference to a nofunc object aka `(ref nofunc)`.
+    pub const NOFUNC: Self = RefType::from_u32(Self::NOFUNC_TYPE);
+
+    /// A non-nullable reference to an eq object aka `(ref eq)`.
+    pub const EQ: Self = RefType::from_u32(Self::EQ_TYPE);
+
+    /// A non-nullable reference to a struct aka `(ref struct)`.
+    pub const STRUCT: Self = RefType::from_u32(Self::STRUCT_TYPE);
+
+    /// A non-nullable reference to an array aka `(ref array)`.
+    pub const ARRAY: Self = RefType::from_u32(Self::ARRAY_TYPE);
+
+    /// A non-nullable reference to an i31 object aka `(ref i31)`.
+    pub const I31: Self = RefType::from_u32(Self::I31_TYPE);
 
     const fn can_represent_type_index(index: u32) -> bool {
         index & Self::INDEX_MASK == index
@@ -203,22 +305,45 @@ impl RefType {
     #[inline]
     const fn from_u32(x: u32) -> Self {
         debug_assert!(x & (0b11111111 << 24) == 0);
-        debug_assert!(matches!(
-            x & Self::DISCRIMINANT_MASK,
-            Self::ANY_FUNC_DISCRIMINANT | Self::TYPED_FUNC_DISCRIMINANT | Self::EXTERN_DISCRIMINANT
-        ));
+
+        // if indexed, kind must be struct/array/func
+        debug_assert!(
+            x & Self::INDEXED_BIT == 0
+                || matches!(
+                    x & Self::KIND_MASK,
+                    Self::FUNC_KIND | Self::ARRAY_KIND | Self::STRUCT_KIND
+                )
+        );
+
+        // if not indexed, type must be any/eq/i31/struct/array/func/extern/nofunc/noextern/none
+        debug_assert!(
+            x & Self::INDEXED_BIT != 0
+                || matches!(
+                    x & Self::TYPE_MASK,
+                    Self::ANY_TYPE
+                        | Self::EQ_TYPE
+                        | Self::I31_TYPE
+                        | Self::STRUCT_TYPE
+                        | Self::ARRAY_TYPE
+                        | Self::FUNC_TYPE
+                        | Self::NOFUNC_TYPE
+                        | Self::EXTERN_TYPE
+                        | Self::NOEXTERN_TYPE
+                        | Self::NONE_TYPE
+                )
+        );
         RefType(Self::u32_to_u24(x))
     }
 
     /// Create a reference to a typed function with the type at the given index.
     ///
     /// Returns `None` when the type index is beyond this crate's implementation
-    /// limits and therfore is not representable.
+    /// limits and therefore is not representable.
     pub const fn typed_func(nullable: bool, index: u32) -> Option<Self> {
         if Self::can_represent_type_index(index) {
-            let nullable = if nullable { Self::NULLABLE_MASK } else { 0 };
+            let nullable32 = Self::NULLABLE_BIT * nullable as u32;
             Some(RefType::from_u32(
-                Self::TYPED_FUNC_DISCRIMINANT | nullable | index,
+                nullable32 | Self::INDEXED_BIT | Self::FUNC_KIND | index,
             ))
         } else {
             None
@@ -229,22 +354,31 @@ impl RefType {
     ///
     /// Returns `None` when the heap type's type index (if any) is beyond this
     /// crate's implementation limits and therfore is not representable.
-    pub fn new(nullable: bool, heap_type: HeapType) -> Option<Self> {
-        let nullable32 = if nullable { Self::NULLABLE_MASK } else { 0 };
+    pub const fn new(nullable: bool, heap_type: HeapType) -> Option<Self> {
+        let nullable32 = Self::NULLABLE_BIT * nullable as u32;
         match heap_type {
             HeapType::TypedFunc(index) => RefType::typed_func(nullable, index),
-            HeapType::Func => Some(Self::from_u32(Self::ANY_FUNC_DISCRIMINANT | nullable32)),
-            HeapType::Extern => Some(Self::from_u32(Self::EXTERN_DISCRIMINANT | nullable32)),
+            HeapType::Func => Some(Self::from_u32(nullable32 | Self::FUNC_TYPE)),
+            HeapType::Extern => Some(Self::from_u32(nullable32 | Self::EXTERN_TYPE)),
+            HeapType::Any => Some(Self::from_u32(nullable32 | Self::ANY_TYPE)),
+            HeapType::None => Some(Self::from_u32(nullable32 | Self::NONE_TYPE)),
+            HeapType::NoExtern => Some(Self::from_u32(nullable32 | Self::NOEXTERN_TYPE)),
+            HeapType::NoFunc => Some(Self::from_u32(nullable32 | Self::NOFUNC_TYPE)),
+            HeapType::Eq => Some(Self::from_u32(nullable32 | Self::EQ_TYPE)),
+            HeapType::Struct => Some(Self::from_u32(nullable32 | Self::STRUCT_TYPE)),
+            HeapType::Array => Some(Self::from_u32(nullable32 | Self::ARRAY_TYPE)),
+            HeapType::I31 => Some(Self::from_u32(nullable32 | Self::I31_TYPE)),
         }
-    }
-
-    const fn discriminant(&self) -> u32 {
-        self.as_u32() & Self::DISCRIMINANT_MASK
     }
 
     /// Is this a reference to a typed function?
     pub const fn is_typed_func_ref(&self) -> bool {
-        self.discriminant() == Self::TYPED_FUNC_DISCRIMINANT
+        self.is_indexed_type_ref() && self.as_u32() & Self::KIND_MASK == Self::FUNC_KIND
+    }
+
+    /// Is this a reference to an indexed type?
+    pub const fn is_indexed_type_ref(&self) -> bool {
+        self.as_u32() & Self::INDEXED_BIT != 0
     }
 
     /// If this is a reference to a typed function, get its type index.
@@ -257,32 +391,81 @@ impl RefType {
     }
 
     /// Is this an untyped function reference aka `(ref null func)` aka `funcref` aka `anyfunc`?
-    pub fn is_func_ref(&self) -> bool {
-        self.discriminant() == Self::ANY_FUNC_DISCRIMINANT
+    pub const fn is_func_ref(&self) -> bool {
+        !self.is_indexed_type_ref() && self.as_u32() & Self::TYPE_MASK == Self::FUNC_TYPE
     }
 
     /// Is this a `(ref null extern)` aka `externref`?
-    pub fn is_extern_ref(&self) -> bool {
-        self.discriminant() == Self::EXTERN_DISCRIMINANT
+    pub const fn is_extern_ref(&self) -> bool {
+        !self.is_indexed_type_ref() && self.as_u32() & Self::TYPE_MASK == Self::EXTERN_TYPE
     }
 
     /// Is this ref type nullable?
     pub const fn is_nullable(&self) -> bool {
-        self.as_u32() & Self::NULLABLE_MASK != 0
+        self.as_u32() & Self::NULLABLE_BIT != 0
     }
 
     /// Get the non-nullable version of this ref type.
-    pub fn as_non_null(&self) -> Self {
-        Self::from_u32(self.as_u32() & !Self::NULLABLE_MASK)
+    pub const fn as_non_null(&self) -> Self {
+        Self::from_u32(self.as_u32() & !Self::NULLABLE_BIT)
+    }
+
+    /// Get the non-nullable version of this ref type.
+    pub const fn nullable(&self) -> Self {
+        Self::from_u32(self.as_u32() | Self::NULLABLE_BIT)
     }
 
     /// Get the heap type that this is a reference to.
     pub fn heap_type(&self) -> HeapType {
-        match self.discriminant() {
-            Self::TYPED_FUNC_DISCRIMINANT => HeapType::TypedFunc(self.type_index().unwrap()),
-            Self::ANY_FUNC_DISCRIMINANT => HeapType::Func,
-            Self::EXTERN_DISCRIMINANT => HeapType::Extern,
-            _ => unreachable!(),
+        let s = self.as_u32();
+        if self.is_indexed_type_ref() {
+            match s & Self::KIND_MASK {
+                Self::FUNC_KIND => HeapType::TypedFunc(self.type_index().unwrap()),
+                _ => unreachable!(),
+            }
+        } else {
+            match s & Self::TYPE_MASK {
+                Self::FUNC_TYPE => HeapType::Func,
+                Self::EXTERN_TYPE => HeapType::Extern,
+                Self::ANY_TYPE => HeapType::Any,
+                Self::NONE_TYPE => HeapType::None,
+                Self::NOEXTERN_TYPE => HeapType::NoExtern,
+                Self::NOFUNC_TYPE => HeapType::NoFunc,
+                Self::EQ_TYPE => HeapType::Eq,
+                Self::STRUCT_TYPE => HeapType::Struct,
+                Self::ARRAY_TYPE => HeapType::Array,
+                Self::I31_TYPE => HeapType::I31,
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    // Note that this is similar to `Display for RefType` except that it has
+    // the indexes stubbed out.
+    pub(crate) fn wat(&self) -> &'static str {
+        match (self.is_nullable(), self.heap_type()) {
+            (true, HeapType::Func) => "funcref",
+            (true, HeapType::Extern) => "externref",
+            (true, HeapType::TypedFunc(_)) => "(ref null $type)",
+            (true, HeapType::Any) => "anyref",
+            (true, HeapType::None) => "nullref",
+            (true, HeapType::NoExtern) => "nullexternref",
+            (true, HeapType::NoFunc) => "nullfuncref",
+            (true, HeapType::Eq) => "eqref",
+            (true, HeapType::Struct) => "structref",
+            (true, HeapType::Array) => "arrayref",
+            (true, HeapType::I31) => "i31ref",
+            (false, HeapType::Func) => "(ref func)",
+            (false, HeapType::Extern) => "(ref extern)",
+            (false, HeapType::TypedFunc(_)) => "(ref $type)",
+            (false, HeapType::Any) => "(ref any)",
+            (false, HeapType::None) => "(ref none)",
+            (false, HeapType::NoExtern) => "(ref noextern)",
+            (false, HeapType::NoFunc) => "(ref nofunc)",
+            (false, HeapType::Eq) => "(ref eq)",
+            (false, HeapType::Struct) => "(ref struct)",
+            (false, HeapType::Array) => "(ref array)",
+            (false, HeapType::I31) => "(ref i31)",
         }
     }
 }
@@ -290,8 +473,16 @@ impl RefType {
 impl<'a> FromReader<'a> for RefType {
     fn from_reader(reader: &mut BinaryReader<'a>) -> Result<Self> {
         match reader.read()? {
-            0x70 => Ok(RefType::FUNCREF),
-            0x6F => Ok(RefType::EXTERNREF),
+            0x70 => Ok(RefType::FUNC.nullable()),
+            0x6F => Ok(RefType::EXTERN.nullable()),
+            0x6E => Ok(RefType::ANY.nullable()),
+            0x65 => Ok(RefType::NONE.nullable()),
+            0x69 => Ok(RefType::NOEXTERN.nullable()),
+            0x68 => Ok(RefType::NOFUNC.nullable()),
+            0x6D => Ok(RefType::EQ.nullable()),
+            0x67 => Ok(RefType::STRUCT.nullable()),
+            0x66 => Ok(RefType::ARRAY.nullable()),
+            0x6A => Ok(RefType::I31.nullable()),
             byte @ (0x6B | 0x6C) => {
                 let nullable = byte == 0x6C;
                 let pos = reader.original_position();
@@ -300,6 +491,38 @@ impl<'a> FromReader<'a> for RefType {
             }
             _ => bail!(reader.original_position(), "malformed reference type"),
         }
+    }
+}
+
+impl fmt::Display for RefType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Note that this is similar to `RefType::wat` except that it has the
+        // indexes filled out.
+        let s = match (self.is_nullable(), self.heap_type()) {
+            (true, HeapType::Func) => "funcref",
+            (true, HeapType::Extern) => "externref",
+            (true, HeapType::TypedFunc(i)) => return write!(f, "(ref null {i})"),
+            (true, HeapType::Any) => "anyref",
+            (true, HeapType::None) => "nullref",
+            (true, HeapType::NoExtern) => "nullexternref",
+            (true, HeapType::NoFunc) => "nullfuncref",
+            (true, HeapType::Eq) => "eqref",
+            (true, HeapType::Struct) => "structref",
+            (true, HeapType::Array) => "arrayref",
+            (true, HeapType::I31) => "i31ref",
+            (false, HeapType::Func) => "(ref func)",
+            (false, HeapType::Extern) => "(ref extern)",
+            (false, HeapType::TypedFunc(i)) => return write!(f, "(ref {i})"),
+            (false, HeapType::Any) => "(ref any)",
+            (false, HeapType::None) => "(ref none)",
+            (false, HeapType::NoExtern) => "(ref noextern)",
+            (false, HeapType::NoFunc) => "(ref nofunc)",
+            (false, HeapType::Eq) => "(ref eq)",
+            (false, HeapType::Struct) => "(ref struct)",
+            (false, HeapType::Array) => "(ref array)",
+            (false, HeapType::I31) => "(ref i31)",
+        };
+        f.write_str(s)
     }
 }
 
@@ -313,6 +536,23 @@ pub enum HeapType {
     Func,
     /// External heap type.
     Extern,
+    /// The `any` heap type. The common supertype (a.k.a. top) of all internal types.
+    Any,
+    /// The `none` heap type. The common subtype (a.k.a. bottom) of all internal types.
+    None,
+    /// The `noextern` heap type. The common subtype (a.k.a. bottom) of all external types.
+    NoExtern,
+    /// The `nofunc` heap type. The common subtype (a.k.a. bottom) of all function types.
+    NoFunc,
+    /// The `eq` heap type. The common supertype of all referenceable types on which comparison
+    /// (ref.eq) is allowed.
+    Eq,
+    /// The `struct` heap type. The common supertype of all struct types.
+    Struct,
+    /// The `array` heap type. The common supertype of all array types.
+    Array,
+    /// The i31 heap type.
+    I31,
 }
 
 impl<'a> FromReader<'a> for HeapType {
@@ -325,6 +565,38 @@ impl<'a> FromReader<'a> for HeapType {
             0x6F => {
                 reader.position += 1;
                 Ok(HeapType::Extern)
+            }
+            0x6E => {
+                reader.position += 1;
+                Ok(HeapType::Any)
+            }
+            0x65 => {
+                reader.position += 1;
+                Ok(HeapType::None)
+            }
+            0x69 => {
+                reader.position += 1;
+                Ok(HeapType::NoExtern)
+            }
+            0x68 => {
+                reader.position += 1;
+                Ok(HeapType::NoFunc)
+            }
+            0x6D => {
+                reader.position += 1;
+                Ok(HeapType::Eq)
+            }
+            0x67 => {
+                reader.position += 1;
+                Ok(HeapType::Struct)
+            }
+            0x66 => {
+                reader.position += 1;
+                Ok(HeapType::Array)
+            }
+            0x6A => {
+                reader.position += 1;
+                Ok(HeapType::I31)
             }
             _ => {
                 let idx = match u32::try_from(reader.read_var_s33()?) {
@@ -405,6 +677,26 @@ impl FuncType {
     #[inline]
     pub fn results(&self) -> &[ValType] {
         &self.params_results[self.len_params..]
+    }
+
+    pub(crate) fn desc(&self) -> String {
+        let mut s = String::new();
+        s.push_str("[");
+        for (i, param) in self.params().iter().enumerate() {
+            if i > 0 {
+                s.push_str(" ");
+            }
+            write!(s, "{param}").unwrap();
+        }
+        s.push_str("] -> [");
+        for (i, result) in self.results().iter().enumerate() {
+            if i > 0 {
+                s.push_str(" ");
+            }
+            write!(s, "{result}").unwrap();
+        }
+        s.push_str("]");
+        s
     }
 }
 

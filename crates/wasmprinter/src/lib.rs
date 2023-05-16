@@ -682,7 +682,7 @@ impl Printer {
         idx: u32,
         names_for: Option<u32>,
     ) -> Result<Option<u32>> {
-        self.print_type_ref(state, idx, true, None)?;
+        self.print_core_type_ref(state, idx)?;
 
         match state.core.types.get(idx as usize) {
             Some(Some(ty)) => self.print_func_type(state, ty, names_for).map(Some),
@@ -724,11 +724,7 @@ impl Printer {
         Ok(ty.params().len() as u32)
     }
 
-    fn print_cont_type(
-        &mut self,
-        state: &State,
-        type_index: u32,
-    ) -> Result<()> {
+    fn print_cont_type(&mut self, state: &State, type_index: u32) -> Result<()> {
         self.result.push(' ');
         self.print_idx(&state.core.type_names, type_index)
     }
@@ -746,15 +742,26 @@ impl Printer {
     }
 
     fn print_reftype(&mut self, ty: RefType) -> Result<()> {
-        if ty == RefType::FUNCREF {
-            self.result.push_str("funcref");
-        } else if ty == RefType::EXTERNREF {
-            self.result.push_str("externref");
+        if ty.is_nullable() {
+            match ty.as_non_null() {
+                RefType::FUNC => self.result.push_str("funcref"),
+                RefType::EXTERN => self.result.push_str("externref"),
+                RefType::I31 => self.result.push_str("i31ref"),
+                RefType::ANY => self.result.push_str("anyref"),
+                RefType::NONE => self.result.push_str("nullref"),
+                RefType::NOEXTERN => self.result.push_str("nullexternref"),
+                RefType::NOFUNC => self.result.push_str("nullfuncref"),
+                RefType::EQ => self.result.push_str("eqref"),
+                RefType::STRUCT => self.result.push_str("structref"),
+                RefType::ARRAY => self.result.push_str("arrayref"),
+                _ => {
+                    self.result.push_str("(ref null ");
+                    self.print_heaptype(ty.heap_type())?;
+                    self.result.push_str(")");
+                }
+            }
         } else {
             self.result.push_str("(ref ");
-            if ty.is_nullable() {
-                self.result.push_str("null ");
-            }
             self.print_heaptype(ty.heap_type())?;
             self.result.push_str(")");
         }
@@ -765,6 +772,14 @@ impl Printer {
         match ty {
             HeapType::Func => self.result.push_str("func"),
             HeapType::Extern => self.result.push_str("extern"),
+            HeapType::Any => self.result.push_str("any"),
+            HeapType::None => self.result.push_str("none"),
+            HeapType::NoExtern => self.result.push_str("noextern"),
+            HeapType::NoFunc => self.result.push_str("nofunc"),
+            HeapType::Eq => self.result.push_str("eq"),
+            HeapType::Struct => self.result.push_str("struct"),
+            HeapType::Array => self.result.push_str("array"),
+            HeapType::I31 => self.result.push_str("i31"),
             HeapType::TypedFunc(i) => self.result.push_str(&format!("{}", u32::from(i))),
         }
         Ok(())
@@ -805,7 +820,7 @@ impl Printer {
                     self.print_name(&state.core.func_names, state.core.funcs)?;
                     self.result.push(' ');
                 }
-                self.print_type_ref(state, *f, true, None)?;
+                self.print_core_type_ref(state, *f)?;
             }
             TypeRef::Table(f) => self.print_table_type(state, f, index)?,
             TypeRef::Memory(f) => self.print_memory_type(state, f, index)?,
@@ -1141,30 +1156,16 @@ impl Printer {
         Ok(())
     }
 
-    fn print_type_ref(
-        &mut self,
-        state: &State,
-        idx: u32,
-        core: bool,
-        bounds: Option<TypeBounds>,
-    ) -> Result<()> {
+    fn print_core_type_ref(&mut self, state: &State, idx: u32) -> Result<()> {
         self.result.push_str("(type ");
-        let closing = match bounds {
-            Some(TypeBounds::Eq) => {
-                self.result.push_str("(eq ");
-                ")"
-            }
-            None => "",
-        };
-        self.print_idx(
-            if core {
-                &state.core.type_names
-            } else {
-                &state.component.type_names
-            },
-            idx,
-        )?;
-        self.result.push_str(closing);
+        self.print_idx(&state.core.type_names, idx)?;
+        self.result.push(')');
+        Ok(())
+    }
+
+    fn print_component_type_ref(&mut self, state: &State, idx: u32) -> Result<()> {
+        self.result.push_str("(type ");
+        self.print_idx(&state.component.type_names, idx)?;
         self.result.push(')');
         Ok(())
     }
@@ -1490,6 +1491,16 @@ impl Printer {
             }
             ComponentDefinedType::Option(ty) => self.print_option_type(state, ty)?,
             ComponentDefinedType::Result { ok, err } => self.print_result_type(state, *ok, *err)?,
+            ComponentDefinedType::Own(idx) => {
+                self.start_group("own ");
+                self.print_idx(&state.component.type_names, *idx)?;
+                self.end_group();
+            }
+            ComponentDefinedType::Borrow(idx) => {
+                self.start_group("borrow ");
+                self.print_idx(&state.component.type_names, *idx)?;
+                self.end_group();
+            }
         }
 
         Ok(())
@@ -1565,11 +1576,11 @@ impl Printer {
                         self.print_str(url)?;
                     }
                     self.result.push(' ');
-                    self.print_component_import_ty(states.last().unwrap(), &ty, false)?;
+                    self.print_component_import_ty(states.last_mut().unwrap(), &ty, false)?;
                     self.end_group();
                 }
                 ComponentTypeDeclaration::Import(import) => {
-                    self.print_component_import(states.last_mut().unwrap(), &import, false)?
+                    self.print_component_import(states.last_mut().unwrap(), &import, true)?
                 }
             }
         }
@@ -1603,7 +1614,7 @@ impl Printer {
                         self.print_str(url)?;
                     }
                     self.result.push(' ');
-                    self.print_component_import_ty(states.last().unwrap(), &ty, false)?;
+                    self.print_component_import_ty(states.last_mut().unwrap(), &ty, false)?;
                     self.end_group();
                 }
             }
@@ -1709,6 +1720,19 @@ impl Printer {
             ComponentType::Instance(decls) => {
                 self.print_instance_type(states, decls.into_vec())?;
             }
+            ComponentType::Resource { rep, dtor } => {
+                self.result.push_str(" ");
+                self.start_group("resource");
+                self.result.push_str(" (rep ");
+                self.print_valtype(rep)?;
+                self.result.push_str(")");
+                if let Some(dtor) = dtor {
+                    self.result.push_str("(dtor (func ");
+                    self.print_idx(&states.last().unwrap().core.func_names, dtor)?;
+                    self.result.push_str("))");
+                }
+                self.end_group();
+            }
         }
         self.end_group();
 
@@ -1740,26 +1764,6 @@ impl Printer {
             let (offset, import) = import?;
             self.newline(offset);
             self.print_component_import(state, &import, true)?;
-            match import.ty {
-                ComponentTypeRef::Module(_) => {
-                    state.core.modules += 1;
-                }
-                ComponentTypeRef::Func(_) => {
-                    state.component.funcs += 1;
-                }
-                ComponentTypeRef::Value(_) => {
-                    state.component.values += 1;
-                }
-                ComponentTypeRef::Type(..) => {
-                    state.component.types += 1;
-                }
-                ComponentTypeRef::Instance(_) => {
-                    state.component.instances += 1;
-                }
-                ComponentTypeRef::Component(_) => {
-                    state.component.components += 1;
-                }
-            }
         }
 
         Ok(())
@@ -1785,7 +1789,7 @@ impl Printer {
 
     fn print_component_import_ty(
         &mut self,
-        state: &State,
+        state: &mut State,
         ty: &ComponentTypeRef,
         index: bool,
     ) -> Result<()> {
@@ -1795,8 +1799,9 @@ impl Printer {
                 if index {
                     self.print_name(&state.core.module_names, state.core.modules as u32)?;
                     self.result.push(' ');
+                    state.core.modules += 1;
                 }
-                self.print_type_ref(state, *idx, true, None)?;
+                self.print_component_type_ref(state, *idx)?;
                 self.end_group();
             }
             ComponentTypeRef::Func(idx) => {
@@ -1804,8 +1809,9 @@ impl Printer {
                 if index {
                     self.print_name(&state.component.func_names, state.component.funcs)?;
                     self.result.push(' ');
+                    state.component.funcs += 1;
                 }
-                self.print_type_ref(state, *idx, false, None)?;
+                self.print_component_type_ref(state, *idx)?;
                 self.end_group();
             }
             ComponentTypeRef::Value(ty) => {
@@ -1813,25 +1819,43 @@ impl Printer {
                 if index {
                     self.print_name(&state.component.value_names, state.component.values)?;
                     self.result.push(' ');
+                    state.component.values += 1;
                 }
                 match ty {
                     ComponentValType::Primitive(ty) => self.print_primitive_val_type(ty),
                     ComponentValType::Type(idx) => {
-                        self.print_type_ref(state, *idx, false, None)?;
+                        self.print_component_type_ref(state, *idx)?;
                     }
                 }
                 self.end_group();
             }
-            ComponentTypeRef::Type(bounds, idx) => {
-                self.print_type_ref(state, *idx, false, Some(*bounds))?;
+            ComponentTypeRef::Type(bounds) => {
+                self.result.push_str("(type ");
+                if index {
+                    self.print_name(&state.component.type_names, state.component.types)?;
+                    self.result.push(' ');
+                    state.component.types += 1;
+                }
+                match bounds {
+                    TypeBounds::Eq(idx) => {
+                        self.result.push_str("(eq ");
+                        self.print_idx(&state.component.type_names, *idx)?;
+                        self.result.push(')');
+                    }
+                    TypeBounds::SubResource => {
+                        self.result.push_str("(sub resource)");
+                    }
+                };
+                self.result.push(')');
             }
             ComponentTypeRef::Instance(idx) => {
                 self.start_group("instance ");
                 if index {
                     self.print_name(&state.component.instance_names, state.component.instances)?;
                     self.result.push(' ');
+                    state.component.instances += 1;
                 }
-                self.print_type_ref(state, *idx, false, None)?;
+                self.print_component_type_ref(state, *idx)?;
                 self.end_group();
             }
             ComponentTypeRef::Component(idx) => {
@@ -1839,8 +1863,9 @@ impl Printer {
                 if index {
                     self.print_name(&state.component.component_names, state.component.components)?;
                     self.result.push(' ');
+                    state.component.components += 1;
                 }
-                self.print_type_ref(state, *idx, false, None)?;
+                self.print_component_type_ref(state, *idx)?;
                 self.end_group();
             }
         }
@@ -2031,6 +2056,36 @@ impl Printer {
                     self.print_idx(&state.component.func_names, func_index)?;
                     self.end_group();
                     self.print_canonical_options(state, &options)?;
+                    self.end_group();
+                    self.end_group();
+                    state.core.funcs += 1;
+                }
+                CanonicalFunction::ResourceNew { resource } => {
+                    self.start_group("core func ");
+                    self.print_name(&state.core.func_names, state.core.funcs)?;
+                    self.result.push(' ');
+                    self.start_group("canon resource.new ");
+                    self.print_idx(&state.component.type_names, resource)?;
+                    self.end_group();
+                    self.end_group();
+                    state.core.funcs += 1;
+                }
+                CanonicalFunction::ResourceDrop { ty } => {
+                    self.start_group("core func ");
+                    self.print_name(&state.core.func_names, state.core.funcs)?;
+                    self.result.push(' ');
+                    self.start_group("canon resource.drop ");
+                    self.print_component_val_type(state, &ty)?;
+                    self.end_group();
+                    self.end_group();
+                    state.core.funcs += 1;
+                }
+                CanonicalFunction::ResourceRep { resource } => {
+                    self.start_group("core func ");
+                    self.print_name(&state.core.func_names, state.core.funcs)?;
+                    self.result.push(' ');
+                    self.start_group("canon resource.rep ");
+                    self.print_idx(&state.component.type_names, resource)?;
                     self.end_group();
                     self.end_group();
                     state.core.funcs += 1;

@@ -814,10 +814,20 @@ impl Module {
     fn check_ref_type(&self, ty: RefType, _types: &TypeList, offset: usize) -> Result<()> {
         // Check that the heap type is valid
         match ty.heap_type() {
-            HeapType::Func | HeapType::Extern => (),
+            HeapType::Func
+            | HeapType::Extern
+            | HeapType::Any
+            | HeapType::None
+            | HeapType::NoExtern
+            | HeapType::NoFunc
+            | HeapType::Eq
+            | HeapType::Struct
+            | HeapType::Array
+            | HeapType::I31 => (),
             HeapType::TypedFunc(type_index) => {
                 // Just check that the index is valid
-                self.type_at(type_index.into(), offset)?; ()
+                self.type_at(type_index.into(), offset)?;
+                ()
             }
         }
         Ok(())
@@ -828,9 +838,11 @@ impl Module {
             if let Ok(y) = self.type_at(t2, offset) {
                 return match (&types[x], &types[y]) {
                     (Type::Func(f1), Type::Func(f2)) => self.eq_functypes(&f1, &f2, types),
-                    (Type::Cont(c1), Type::Cont(c2)) => c1 == c2 || self.eq_defs(*c1, *c2, types, offset),
+                    (Type::Cont(c1), Type::Cont(c2)) => {
+                        c1 == c2 || self.eq_defs(*c1, *c2, types, offset)
+                    }
                     (_, _) => false,
-                }
+                };
             }
         }
         return false;
@@ -843,14 +855,21 @@ impl Module {
                     && match (rt1.heap_type(), rt2.heap_type()) {
                         (HeapType::Func, HeapType::Func) => true,
                         (HeapType::Extern, HeapType::Extern) => true,
-                        (HeapType::TypedFunc(n1), HeapType::TypedFunc(n2)) => n1 == n2 || self.eq_defs(n1.into(), n2.into(), types, 0),
+                        (HeapType::TypedFunc(n1), HeapType::TypedFunc(n2)) => {
+                            n1 == n2 || self.eq_defs(n1.into(), n2.into(), types, 0)
+                        }
                         (_, _) => false,
                     }
             }
             _ => ty1 == ty2,
         }
     }
-    fn eq_functypes(&self, f1: &impl WasmFuncType, f2: &impl WasmFuncType, types: &TypeList) -> bool {
+    fn eq_functypes(
+        &self,
+        f1: &impl WasmFuncType,
+        f2: &impl WasmFuncType,
+        types: &TypeList,
+    ) -> bool {
         f1.len_inputs() == f2.len_inputs()
             && f2.len_outputs() == f2.len_outputs()
             && f1
@@ -863,7 +882,12 @@ impl Module {
                 .all(|(t1, t2)| self.eq_valtypes(t1, t2, types))
     }
 
-    pub(crate) fn match_functypes(&self, ty1: &impl WasmFuncType, ty2: &impl WasmFuncType, types: &TypeList) -> bool {
+    pub(crate) fn match_functypes(
+        &self,
+        ty1: &impl WasmFuncType,
+        ty2: &impl WasmFuncType,
+        types: &TypeList,
+    ) -> bool {
         self.eq_functypes(ty1, ty2, types)
     }
 
@@ -1202,7 +1226,8 @@ impl WasmModuleResources for ValidatorResources {
     }
 
     fn match_functypes(&self, t1: &impl WasmFuncType, t2: &impl WasmFuncType) -> bool {
-        self.0.match_functypes(t1, t2, self.0.snapshot.as_ref().unwrap())
+        self.0
+            .match_functypes(t1, t2, self.0.snapshot.as_ref().unwrap())
     }
 
     fn matches(&self, t1: ValType, t2: ValType) -> bool {

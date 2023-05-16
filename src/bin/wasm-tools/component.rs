@@ -2,6 +2,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::Parser;
+use std::borrow::Cow;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use wasm_encoder::{Encode, Section};
@@ -23,6 +24,14 @@ impl Opts {
             Opts::New(new) => new.run(),
             Opts::Wit(wit) => wit.run(),
             Opts::Embed(embed) => embed.run(),
+        }
+    }
+
+    pub fn general_opts(&self) -> &wasm_tools::GeneralOpts {
+        match self {
+            Opts::New(new) => new.general_opts(),
+            Opts::Wit(wit) => wit.general_opts(),
+            Opts::Embed(embed) => embed.general_opts(),
         }
     }
 }
@@ -90,6 +99,10 @@ pub struct NewOpts {
 }
 
 impl NewOpts {
+    fn general_opts(&self) -> &wasm_tools::GeneralOpts {
+        self.io.general_opts()
+    }
+
     /// Executes the application.
     fn run(self) -> Result<()> {
         let wasm = self.io.parse_input_wasm()?;
@@ -171,10 +184,13 @@ pub struct EmbedOpts {
 }
 
 impl EmbedOpts {
+    fn general_opts(&self) -> &wasm_tools::GeneralOpts {
+        self.io.general_opts()
+    }
+
     /// Executes the application.
     fn run(self) -> Result<()> {
         let wasm = if self.dummy {
-            self.io.init_logger();
             None
         } else {
             Some(self.io.parse_input_wasm()?)
@@ -190,8 +206,8 @@ impl EmbedOpts {
         )?;
 
         let section = wasm_encoder::CustomSection {
-            name: "component-type",
-            data: &encoded,
+            name: "component-type".into(),
+            data: Cow::Borrowed(&encoded),
         };
         let mut wasm = wasm.unwrap_or_else(|| wit_component::dummy_module(&resolve, world));
         wasm.push(section.id());
@@ -216,7 +232,7 @@ impl EmbedOpts {
 #[derive(Parser)]
 pub struct WitOpts {
     #[clap(flatten)]
-    verbosity: wasm_tools::Verbosity,
+    general: wasm_tools::GeneralOpts,
 
     /// Input file or directory to process.
     ///
@@ -274,6 +290,10 @@ pub struct WitOpts {
 }
 
 impl WitOpts {
+    fn general_opts(&self) -> &wasm_tools::GeneralOpts {
+        &self.general
+    }
+
     /// Executes the application.
     fn run(self) -> Result<()> {
         let name = match &self.name {

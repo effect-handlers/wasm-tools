@@ -2,6 +2,7 @@ use self::bitvec::BitVec;
 use anyhow::{bail, Result};
 use indexmap::{IndexMap, IndexSet};
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     mem,
     ops::Deref,
@@ -481,7 +482,16 @@ impl<'a> Module<'a> {
 
     fn heapty(&mut self, ty: HeapType) {
         match ty {
-            HeapType::Func | HeapType::Extern => {}
+            HeapType::Func
+            | HeapType::Extern
+            | HeapType::Any
+            | HeapType::None
+            | HeapType::NoExtern
+            | HeapType::NoFunc
+            | HeapType::Eq
+            | HeapType::Struct
+            | HeapType::Array
+            | HeapType::I31 => {}
             HeapType::TypedFunc(i) => self.ty(i.into()),
         }
     }
@@ -939,8 +949,8 @@ impl<'a> Module<'a> {
         encode_subsection(0x07, &global_names);
         if !section.is_empty() {
             ret.section(&wasm_encoder::CustomSection {
-                name: "name",
-                data: &section,
+                name: "name".into(),
+                data: Cow::Borrowed(&section),
             });
         }
         if let Some(producers) = &self.producers {
@@ -1105,9 +1115,17 @@ impl Encoder {
 
     fn heapty(&self, ht: wasmparser::HeapType) -> wasm_encoder::HeapType {
         match ht {
-            wasmparser::HeapType::Func => wasm_encoder::HeapType::Func,
-            wasmparser::HeapType::Extern => wasm_encoder::HeapType::Extern,
-            wasmparser::HeapType::TypedFunc(idx) => {
+            HeapType::Func => wasm_encoder::HeapType::Func,
+            HeapType::Extern => wasm_encoder::HeapType::Extern,
+            HeapType::Any => wasm_encoder::HeapType::Any,
+            HeapType::None => wasm_encoder::HeapType::None,
+            HeapType::NoExtern => wasm_encoder::HeapType::NoExtern,
+            HeapType::NoFunc => wasm_encoder::HeapType::NoFunc,
+            HeapType::Eq => wasm_encoder::HeapType::Eq,
+            HeapType::Struct => wasm_encoder::HeapType::Struct,
+            HeapType::Array => wasm_encoder::HeapType::Array,
+            HeapType::I31 => wasm_encoder::HeapType::I31,
+            HeapType::TypedFunc(idx) => {
                 wasm_encoder::HeapType::TypedFunc(self.types.remap(idx.into()).try_into().unwrap())
             }
         }
