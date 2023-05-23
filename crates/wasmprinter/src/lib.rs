@@ -56,7 +56,7 @@ pub struct Printer {
 
 #[derive(Default)]
 struct CoreState {
-    types: Vec<Option<FuncType>>,
+    types: Vec<Option<Type>>,
     funcs: u32,
     memories: u32,
     tags: u32,
@@ -605,21 +605,21 @@ impl Printer {
         Ok(())
     }
 
-    fn print_core_type(&mut self, states: &mut Vec<State>, ty: wasmparser::CoreType) -> Result<()> {
+    fn print_core_type(&mut self, states: &mut Vec<State>, ty: CoreType) -> Result<()> {
         self.start_group("core type ");
         self.print_name(
             &states.last().unwrap().core.type_names,
             states.last().unwrap().core.types.len() as u32,
         )?;
         let ty = match ty {
-            wasmparser::CoreType::Func(ty) => {
+            CoreType::Func(ty) => {
                 self.result.push(' ');
                 self.start_group("func");
                 self.print_func_type(states.last().unwrap(), &ty, None)?;
                 self.end_group();
-                Some(ty)
+                Some(Type::Func(ty))
             }
-            wasmparser::CoreType::Module(decls) => {
+            CoreType::Module(decls) => {
                 self.print_module_type(states, decls.into_vec())?;
                 None
             }
@@ -634,21 +634,28 @@ impl Printer {
         self.start_group("type ");
         self.print_name(&state.core.type_names, state.core.types.len() as u32)?;
         self.result.push(' ');
-        match ty {
-            wasmparser::Type::Func(ty) => {
+        let ty = match ty {
+            Type::Func(ty) => {
                 self.start_group("func");
                 self.print_func_type(state, &ty, None)?;
                 self.end_group();
-                state.core.types.push(Some(ty))
+                Type::Func(ty)
             }
-            wasmparser::Type::Cont(type_index) => {
+            Type::Array(ty) => {
+                self.start_group("array");
+                self.print_array_type(&ty)?;
+                self.end_group();
+                Type::Array(ty)
+            }
+            Type::Cont(type_index) => {
                 self.start_group("cont");
                 self.print_cont_type(state, type_index)?;
                 self.end_group();
-                state.core.types.push(None) // TODO(dhil): not too sure what the purpose of state.core.types is...
+                Type::Cont(type_index)
             }
         };
         self.end_group(); // `type` itself
+        state.core.types.push(Some(ty));
         Ok(())
     }
 
@@ -685,7 +692,9 @@ impl Printer {
         self.print_core_type_ref(state, idx)?;
 
         match state.core.types.get(idx as usize) {
-            Some(Some(ty)) => self.print_func_type(state, ty, names_for).map(Some),
+            Some(Some(Type::Func(ty))) => self.print_func_type(state, ty, names_for).map(Some),
+            Some(Some(Type::Array(ty))) => self.print_array_type(ty).map(Some),
+            Some(Some(Type::Cont(type_index))) => self.print_cont_type(state, *type_index).map(Some),
             Some(None) | None => Ok(None),
         }
     }
@@ -724,9 +733,31 @@ impl Printer {
         Ok(ty.params().len() as u32)
     }
 
-    fn print_cont_type(&mut self, state: &State, type_index: u32) -> Result<()> {
+    fn print_cont_type(&mut self, state: &State, type_index: u32) -> Result<u32> {
         self.result.push(' ');
-        self.print_idx(&state.core.type_names, type_index)
+        self.print_idx(&state.core.type_names, type_index)?;
+        Ok(0)
+    }
+
+    fn print_array_type(&mut self, ty: &ArrayType) -> Result<u32> {
+        self.result.push(' ');
+        if ty.mutable {
+            self.result.push_str("(mut ");
+        }
+        self.print_storage_type(ty.element_type)?;
+        if ty.mutable {
+            self.result.push_str(")");
+        }
+        Ok(0)
+    }
+
+    fn print_storage_type(&mut self, ty: StorageType) -> Result<()> {
+        match ty {
+            StorageType::I8 => self.result.push_str("i8"),
+            StorageType::I16 => self.result.push_str("i16"),
+            StorageType::Val(val_type) => self.print_valtype(val_type)?,
+        }
+        Ok(())
     }
 
     fn print_valtype(&mut self, ty: ValType) -> Result<()> {
@@ -780,7 +811,7 @@ impl Printer {
             HeapType::Struct => self.result.push_str("struct"),
             HeapType::Array => self.result.push_str("array"),
             HeapType::I31 => self.result.push_str("i31"),
-            HeapType::TypedFunc(i) => self.result.push_str(&format!("{}", u32::from(i))),
+            HeapType::Indexed(i) => self.result.push_str(&format!("{}", u32::from(i))),
         }
         Ok(())
     }

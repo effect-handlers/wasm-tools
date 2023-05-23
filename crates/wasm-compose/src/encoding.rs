@@ -288,7 +288,7 @@ impl<'a> TypeEncoder<'a> {
                 wasmparser::HeapType::Struct => HeapType::Struct,
                 wasmparser::HeapType::Array => HeapType::Array,
                 wasmparser::HeapType::I31 => HeapType::I31,
-                wasmparser::HeapType::TypedFunc(i) => HeapType::TypedFunc(i.into()),
+                wasmparser::HeapType::Indexed(i) => HeapType::Indexed(i.into()),
             },
         }
     }
@@ -468,21 +468,15 @@ impl<'a> TypeEncoder<'a> {
         let ty = self.0.type_from_id(id).unwrap();
 
         match ty {
-            wasmparser::types::Type::Func(_)
-            | wasmparser::types::Type::Instance(_)
-            | wasmparser::types::Type::Cont(_) => {
+            Type::Func(_) | Type::Array(_) | Type::Instance(_) | Type::Cont(_) => {
                 unreachable!()
             }
-            wasmparser::types::Type::Module(_) => self.module_type(encodable, types, id),
-            wasmparser::types::Type::Component(_) => self.component_type(encodable, types, id),
-            wasmparser::types::Type::ComponentInstance(_) => {
-                self.component_instance_type(encodable, types, id)
-            }
-            wasmparser::types::Type::ComponentFunc(_) => {
-                self.component_func_type(encodable, types, id)
-            }
-            wasmparser::types::Type::Defined(_) => self.defined_type(encodable, types, id),
-            wasmparser::types::Type::Resource(_) => unimplemented!(),
+            Type::Module(_) => self.module_type(encodable, types, id),
+            Type::Component(_) => self.component_type(encodable, types, id),
+            Type::ComponentInstance(_) => self.component_instance_type(encodable, types, id),
+            Type::ComponentFunc(_) => self.component_func_type(encodable, types, id),
+            Type::Defined(_) => self.defined_type(encodable, types, id),
+            Type::Resource(_) => unimplemented!(),
         }
     }
 

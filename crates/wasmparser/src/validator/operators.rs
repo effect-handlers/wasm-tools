@@ -1369,14 +1369,14 @@ where
         Ok(())
     }
     fn visit_call_ref(&mut self, type_index: u32) -> Self::Output {
-        let hty = HeapType::TypedFunc(type_index);
+        let hty = HeapType::Indexed(type_index);
         self.resources
             .check_heap_type(hty, &self.features, self.offset)?;
         // If `None` is popped then that means a "bottom" type was popped which
         // is always considered equivalent to the `hty` tag.
         if let Some(rt) = self.pop_ref()? {
-            let expected =
-                RefType::new(true, hty).expect("existing heap types should be within our limits");
+            let expected = RefType::indexed_func(true, type_index)
+                .expect("existing heap types should be within our limits");
             if !self
                 .resources
                 .matches(ValType::Ref(rt), ValType::Ref(expected))
@@ -2388,9 +2388,8 @@ where
         // FIXME(#924) this should not be conditional based on enabled
         // proposals.
         if self.features.function_references {
-            let heap_type = HeapType::TypedFunc(type_index);
             self.push_operand(
-                RefType::new(false, heap_type)
+                RefType::indexed_func(false, type_index)
                     .expect("our limits on number of types should fit into ref type"),
             )?;
         } else {
@@ -3437,9 +3436,9 @@ where
     // Typed continuations operators.
     fn visit_cont_new(&mut self, type_index: u32) -> Self::Output {
         let fidx = self.cont_type_at(type_index)?;
-        let rt = RefType::typed_func(false, fidx).unwrap(); // TODO(dhil): error handling
+        let rt = RefType::indexed_func(false, fidx).unwrap(); // TODO(dhil): error handling
         self.pop_operand(Some(ValType::Ref(rt)))?;
-        let result = RefType::typed_func(false, type_index).unwrap(); // TODO(dhil): error handling
+        let result = RefType::indexed_func(false, type_index).unwrap(); // TODO(dhil): error handling
         self.push_operand(ValType::Ref(result))?;
         Ok(())
     }
@@ -3472,7 +3471,7 @@ where
         match self.pop_ref()? {
             None => {} // bot case
             Some(rt) => {
-                let expected = ValType::Ref(RefType::typed_func(false, src_index).unwrap()); // TODO(dhil): error handling
+                let expected = ValType::Ref(RefType::indexed_func(false, src_index).unwrap()); // TODO(dhil): error handling
                 if !self.resources.matches(expected, ValType::Ref(rt)) {
                     bail!(
                         self.offset,
@@ -3490,7 +3489,7 @@ where
         }
 
         // Construct the result type.
-        let result_type = ValType::Ref(RefType::typed_func(false, dst_index).unwrap()); // TODO(dhil): error handling
+        let result_type = ValType::Ref(RefType::indexed_func(false, dst_index).unwrap()); // TODO(dhil): error handling
 
         // Push the continuation reference.
         self.push_operand(result_type)?;
@@ -3509,7 +3508,7 @@ where
     }
     fn visit_resume(&mut self, type_index: u32, resumetable: ResumeTable) -> Self::Output {
         let ctft = self.func_type_at(self.cont_type_at(type_index)?)?;
-        let expected = ValType::Ref(RefType::typed_func(true, type_index).unwrap()); // TODO(dhil): error handling
+        let expected = ValType::Ref(RefType::indexed_func(true, type_index).unwrap()); // TODO(dhil): error handling
         match self.pop_ref()? {
             None => {}
             Some(rt) if self.resources.matches(ValType::Ref(rt), expected) => {
@@ -3544,7 +3543,7 @@ where
         resumetable: ResumeTable,
     ) -> Self::Output {
         let ctft = self.func_type_at(self.cont_type_at(type_index)?)?;
-        let expected = ValType::Ref(RefType::typed_func(true, type_index).unwrap()); // TODO(dhil): error handling
+        let expected = ValType::Ref(RefType::indexed_func(true, type_index).unwrap()); // TODO(dhil): error handling
         match self.pop_ref()? {
             None => {}
             Some(rt) if self.resources.matches(ValType::Ref(rt), expected) => {

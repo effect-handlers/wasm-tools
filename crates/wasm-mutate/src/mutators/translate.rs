@@ -109,7 +109,7 @@ pub trait Translator {
     }
 
     fn remap(&mut self, item: Item, idx: u32) -> Result<u32> {
-        drop(item);
+        let _ = item;
         Ok(idx)
     }
 }
@@ -138,6 +138,7 @@ pub fn type_def(t: &mut dyn Translator, ty: Type, s: &mut TypeSection) -> Result
             Ok(())
         }
         Type::Cont(_) => unimplemented!(),
+        Type::Array(_) => unimplemented!("Array and struct types are not supported yet."),
     }
 }
 
@@ -211,8 +212,8 @@ pub fn heapty(t: &mut dyn Translator, ty: &wasmparser::HeapType) -> Result<HeapT
         wasmparser::HeapType::Struct => Ok(HeapType::Struct),
         wasmparser::HeapType::Array => Ok(HeapType::Array),
         wasmparser::HeapType::I31 => Ok(HeapType::I31),
-        wasmparser::HeapType::TypedFunc(i) => {
-            Ok(HeapType::TypedFunc(t.remap(Item::Type, (*i).into())?))
+        wasmparser::HeapType::Indexed(i) => {
+            Ok(HeapType::Indexed(t.remap(Item::Type, (*i).into())?))
         }
     }
 }

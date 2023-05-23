@@ -744,7 +744,7 @@ impl ComponentState {
 
             // Core wasm constructs are always valid with respect to
             // exported types, since they have none.
-            Type::Module(_) | Type::Instance(_) | Type::Func(_) => true,
+            Type::Module(_) | Type::Instance(_) | Type::Func(_) | Type::Array(_) => true,
 
             // TODO(dhil): not clear whether the above statement is
             // true in the presence of Cont.
@@ -1504,7 +1504,7 @@ impl ComponentState {
                         crate::OuterAliasKind::Type => {
                             let ty = if count == 0 {
                                 // Local alias, check the local module state
-                                state.type_at(index, offset)?
+                                state.type_id_at(index, offset)?
                             } else {
                                 // Otherwise, check the enclosing component state
                                 let component =

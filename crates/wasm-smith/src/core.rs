@@ -610,6 +610,9 @@ impl Module {
                     new_index
                 }
                 Some((wasmparser::Type::Cont(_), _)) => unimplemented!(),
+                Some((wasmparser::Type::Array(_array_type), _index_store)) => {
+                    unimplemented!("Array and struct types are not supported yet.");
+                }
             };
             match &new_types[serialized_sig_idx - first_type_index] {
                 Type::Func(f) => Some((serialized_sig_idx as u32, Rc::clone(f))),
@@ -1652,7 +1655,7 @@ fn convert_reftype(ty: wasmparser::RefType) -> RefType {
             wasmparser::HeapType::Struct => HeapType::Struct,
             wasmparser::HeapType::Array => HeapType::Array,
             wasmparser::HeapType::I31 => HeapType::I31,
-            wasmparser::HeapType::TypedFunc(i) => HeapType::TypedFunc(i.into()),
+            wasmparser::HeapType::Indexed(i) => HeapType::Indexed(i.into()),
         },
     }
 }

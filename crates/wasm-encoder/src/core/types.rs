@@ -1,5 +1,16 @@
 use crate::{encode_section, Encode, Section, SectionId};
 
+/// Array or struct field type.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub enum StorageType {
+    /// The `i8` type.
+    I8,
+    /// The `i16` type.
+    I16,
+    /// A value type.
+    Val(ValType),
+}
+
 /// The type of a core WebAssembly value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum ValType {
@@ -28,6 +39,16 @@ impl ValType {
     pub const FUNCREF: ValType = ValType::Ref(RefType::FUNCREF);
     /// Alias for the `externref` type in WebAssembly
     pub const EXTERNREF: ValType = ValType::Ref(RefType::EXTERNREF);
+}
+
+impl Encode for StorageType {
+    fn encode(&self, sink: &mut Vec<u8>) {
+        match self {
+            StorageType::I8 => sink.push(0x7A),
+            StorageType::I16 => sink.push(0x79),
+            StorageType::Val(vt) => vt.encode(sink),
+        }
+    }
 }
 
 impl Encode for ValType {
@@ -120,8 +141,8 @@ pub enum HeapType {
     Array,
     /// The i31 heap type.
     I31,
-    /// Function of the type at the given index.
-    TypedFunc(u32),
+    /// User defined type at the given index.
+    Indexed(u32),
 }
 
 impl Encode for HeapType {
@@ -139,7 +160,7 @@ impl Encode for HeapType {
             HeapType::I31 => sink.push(0x6A),
             // Note that this is encoded as a signed type rather than unsigned
             // as it's decoded as an s33
-            HeapType::TypedFunc(i) => i64::from(*i).encode(sink),
+            HeapType::Indexed(i) => i64::from(*i).encode(sink),
         }
     }
 }
@@ -198,6 +219,15 @@ impl TypeSection {
         params.for_each(|p| p.encode(&mut self.bytes));
         results.len().encode(&mut self.bytes);
         results.for_each(|p| p.encode(&mut self.bytes));
+        self.num_added += 1;
+        self
+    }
+
+    /// Define an array type in this type section.
+    pub fn array(&mut self, ty: StorageType, mutable: bool) -> &mut Self {
+        self.bytes.push(0x5e);
+        ty.encode(&mut self.bytes);
+        self.bytes.push(mutable as u8);
         self.num_added += 1;
         self
     }
