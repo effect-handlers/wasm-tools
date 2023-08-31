@@ -1,3 +1,6 @@
+<h1>Development has moved to https://github.com/wasmfx/wasmfx-tools</h1>
+<hr>
+
 <div align="center">
   <h1><code>wasm-tools</code></h1>
 
